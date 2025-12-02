@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Diri Screensaver</title>
+    <style>
+        body {
+            background-color: #FFDD00; /* Amarillo característico de Diri */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+        }
+
+        .container {
+            text-align: center;
+        }
+
+        /* Simulación del Logo (Texto por ahora) */
+        h1 {
+            font-size: 8rem;
+            color: #000000;
+            margin: 0;
+            letter-spacing: -2px;
+            font-weight: 800;
+            animation: pulse 3s infinite ease-in-out;
+        }
+
+        p {
+            font-size: 2rem;
+            color: #000000;
+            margin-top: 10px;
+            font-weight: 300;
+            opacity: 0.8;
+        }
+
+        /* Círculos decorativos animados */
+        .circle {
+            position: absolute;
+            border-radius: 50%;
+            border: 2px solid #000;
+            opacity: 0.1;
+            animation: float 10s infinite linear;
+        }
+
+        /* Animaciones */
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        @keyframes float {
+            0% { transform: translateY(0) rotate(0deg); opacity: 0; }
+            50% { opacity: 0.2; }
+            100% { transform: translateY(-100vh) rotate(360deg); opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="circle" style="width: 100px; height: 100px; left: 10%; bottom: -100px; animation-duration: 7s;"></div>
+    <div class="circle" style="width: 200px; height: 200px; left: 80%; bottom: -200px; animation-duration: 12s;"></div>
+    <div class="circle" style="width: 50px; height: 50px; left: 40%; bottom: -50px; animation-duration: 5s;"></div>
+
+    <div class="container">
+        <h1>diri</h1>
+        <p>telecomunicaciones</p>
+    </div>
+
+</body>
+</html>

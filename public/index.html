@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>QA | Simulador de Pagos</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --bg-body: #f3f4f6;
+      --bg-card: #ffffff;
+      --border-soft: #e5e7eb;
+      --primary: #2563eb;
+      --primary-dark: #1d4ed8;
+      --ok: #16a34a;
+      --error: #dc2626;
+      --warn: #f59e0b;
+      --text-main: #111827;
+      --text-muted: #6b7280;
+      --code-bg: #111827;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 16px;
+      background: var(--bg-body);
+      color: var(--text-main);
+    }
+
+    .wrapper {
+      max-width: 720px;
+      margin: 0 auto;
+    }
+
+    .header-card {
+      background: linear-gradient(135deg, #0f172a, #1e293b);
+      color: #f9fafb;
+      border-radius: 12px 12px 0 0;
+      padding: 20px 20px 16px;
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.35);
+    }
+
+    .header-title {
+      font-size: 1.4rem;
+      margin: 0 0 4px;
+      font-weight: 600;
+    }
+
+    .header-subtitle {
+      font-size: 0.9rem;
+      margin: 0;
+      color: #cbd5f5;
+    }
+
+    .main-card {
+      background: var(--bg-card);
+      border-radius: 0 0 12px 12px;
+      padding: 16px 20px 20px;
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.15);
+      border: 1px solid rgba(148, 163, 184, 0.4);
+      border-top: none;
+      margin-bottom: 16px;
+    }
+
+    .section {
+      border-bottom: 1px solid var(--border-soft);
+      padding-bottom: 12px;
+      margin-bottom: 12px;
+    }
+
+    .section:last-child {
+      border-bottom: none;
+      margin-bottom: 0;
+      padding-bottom: 0;
+    }
+
+    .section-title {
+      font-size: 0.95rem;
+      font-weight: 600;
+      margin: 0 0 8px;
+      color: var(--text-main);
+    }
+
+    label {
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: var(--text-main);
+    }
+
+    input[type="text"],
+    select {
+      width: 100%;
+      max-width: 320px;
+      padding: 7px 10px;
+      margin-top: 4px;
+      border-radius: 6px;
+      border: 1px solid #d1d5db;
+      font-size: 0.9rem;
+    }
+
+    input[type="text"]:focus,
+    select:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.25);
+    }
+
+    .field-row {
+      margin-bottom: 10px;
+    }
+
+    .radio-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 6px;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
+
+    .radio-group label {
+      font-weight: 400;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .buttons-row {
+      margin-top: 12px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    button {
+      padding: 8px 14px;
+      border-radius: 999px;
+      border: none;
+      cursor: pointer;
+      font-weight: 500;
+      font-size: 0.9rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    button.primary {
+      background: var(--primary);
+      color: #ffffff;
+    }
+
+    button.primary:hover:not(:disabled) {
+      background: var(--primary-dark);
+    }
+
+    button.secondary {
+      background: #e5e7eb;
+      color: #111827;
+    }
+
+    button.secondary:hover:not(:disabled) {
+      background: #d1d5db;
+    }
+
+    button:disabled {
+      opacity: 0.7;
+      cursor: not-allowed;
+    }
+
+    .status-bar {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .status-ok {
+      background: #ecfdf3;
+      color: var(--ok);
+    }
+
+    .status-error {
+      background: #fef2f2;
+      color: var(--error);
+    }
+
+    .status-warning {
+      background: #fffbeb;
+      color: var(--warn);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    .status-ok .status-dot {
+      background: var(--ok);
+    }
+
+    .status-error .status-dot {
+      background: var(--error);
+    }
+
+    .status-warning .status-dot {
+      background: var(--warn);
+    }
+
+    .summary-message {
+      font-size: 0.9rem;
+      margin-bottom: 8px;
+    }
+
+    .summary-keydata {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .summary-keydata strong {
+      color: var(--text-main);
+    }
+
+    .progress-wrapper {
+      margin-top: 8px;
+      margin-bottom: 4px;
+    }
+
+    .progress-label-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 6px;
+      border-radius: 999px;
+      background: #e5e7eb;
+      overflow: hidden;
+    }
+
+    .progress-bar-inner {
+      height: 100%;
+      width: 0;
+      border-radius: inherit;
+      background: var(--primary);
+      transition: width 0.25s ease-out, background 0.25s ease-out;
+    }
+
+    .progress-bar-inner.ok {
+      background: var(--ok);
+    }
+
+    .progress-bar-inner.error {
+      background: var(--error);
+    }
+
+    .steps-list {
+      list-style: none;
+      padding-left: 0;
+      margin: 0;
+      font-size: 0.85rem;
+    }
+
+    .steps-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 3px 0;
+    }
+
+    .step-icon {
+      margin-top: 4px;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .step-ok .step-icon {
+      background: var(--ok);
+    }
+
+    .step-error .step-icon {
+      background: var(--error);
+    }
+
+    .step-neutral .step-icon {
+      background: #9ca3af;
+    }
+
+    .step-text {
+      color: var(--text-muted);
+    }
+
+    .details-container {
+      margin-top: 10px;
+      display: none;
+    }
+
+    .details-container pre {
+      max-height: 420px;
+      overflow: auto;
+      background: var(--code-bg);
+      color: #e5e7eb;
+      padding: 10px;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      line-height: 1.4;
+    }
+
+    .details-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .details-title {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    @media (max-width: 600px) {
+      .header-card, .main-card {
+        padding: 14px 14px 12px;
+      }
+
+      .header-title {
+        font-size: 1.15rem;
+      }
+
+      .header-subtitle {
+        font-size: 0.8rem;
+      }
+
+      input[type="text"],
+      select {
+        max-width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="header-card">
+      <a href="https:%2F%2Fwww.diri.mx/" title="" target="_blank" data-saferedirecturl="https://www.google.com/url?q=https://kfk3prh7.r.us-east-1.awstrack.me/L0/https:%252F%252Fwww.diri.mx/1/0100019a7bd55f3f-0ffdd25a-53cd-42c3-9c4b-1ab1d5e080a7-000000/J71UPJEfe-h_5LtjozMVhn82f18%3D452&amp;source=gmail&amp;ust=1763676771009000&amp;usg=AOvVaw3u8_yKhexzC65xftJNSME-">
+                <img src="https://pinpointemailimagenes.s3.amazonaws.com/DIRI_EMAILS/renov_anual/diri_blanco.png" alt="Logo diri blanco" width="100" style="display:block;border:0;width:20%;height:auto;margin:0 auto" class="CToWUd" data-bit="iit">
+              </a>
+      <div class="header-title">QA | Simulador de Pagos</div>
+      <p class="header-subtitle">
+        Ejecución orquestada: Pasarela → PROD → (UAT / API 2 en siguientes fases).
+      </p>
+    </div>
+
+    <div class="main-card">
+      <!-- Sección: Filtros / Entrada -->
+      <div class="section">
+        <div class="section-title">Entrada de búsqueda</div>
+        <form id="flowForm">
+          <div class="field-row">
+            <label for="folioCompra">Folio de compra (external_reference):</label><br />
+            <input
+              type="text"
+              id="folioCompra"
+              name="folioCompra"
+              required
+              placeholder="Ej. ugpd_1764606325675"
+            />
+          </div>
+
+          <div class="field-row">
+            <label for="brandNumber">Número de marca:</label><br />
+            <input
+              type="text"
+              id="brandNumber"
+              name="brandNumber"
+              placeholder="Ej. 1,2,5,12,16"
+            />
+          </div>
+
+          <div class="field-row">
+            <label for="gateway">Pasarela de pago:</label><br />
+            <select id="gateway" name="gateway">
+              <option value="mercadopago">MercadoPago</option>
+              <option value="paypal">PayPal</option>
+              <option value="openpay">OpenPay</option>
+              <option value="stripe">Stripe</option>
+            </select>
+          </div>
+
+          <div class="field-row">
+            <label>Tipo de operación:</label>
+            <div class="radio-group">
+              <label>
+                <input
+                  type="radio"
+                  name="tipoOperacion"
+                  value="recarga"
+                  checked
+                />
+                Recarga
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  name="tipoOperacion"
+                  value="compra"
+                />
+                Compra
+              </label>
+            </div>
+          </div>
+
+          <div class="buttons-row">
+            <button type="submit" class="primary" id="runButton">
+              Ejecutar flujo
+            </button>
+            <button type="button" class="secondary" id="clearButton">
+              Limpiar
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Sección: Resumen / Estado + Progreso -->
+      <div class="section hidden" id="summarySection">
+        <div id="statusChip" class="status-bar">
+          <span class="status-dot"></span>
+          <span></span>
+        </div>
+
+        <div class="summary-message" id="summaryMessage"></div>
+        <div class="summary-keydata" id="summaryKeyData"></div>
+
+        <div class="progress-wrapper" id="progressWrapper">
+          <div class="progress-label-row">
+            <span>Progreso del flujo</span>
+            <span id="progressPercentLabel">0%</span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-bar-inner" id="progressBarInner"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sección: Checklist de pasos -->
+      <div class="section hidden" id="stepsSection">
+        <div class="section-title">Pasos del flujo</div>
+        <ul class="steps-list" id="stepsList"></ul>
+      </div>
+
+      <!-- Sección: Detalles -->
+      <div class="section hidden" id="detailsSection">
+        <div class="details-header">
+          <div class="details-title">Detalle técnico de la ejecución</div>
+          <button class="secondary" type="button" id="toggleDetailsButton">
+            Ver detalles
+          </button>
+        </div>
+        <div class="details-container" id="detailsContainer">
+          <pre id="detailsPre"></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const form = document.getElementById("flowForm");
+    const runButton = document.getElementById("runButton");
+    const clearButton = document.getElementById("clearButton");
+
+    const summarySection = document.getElementById("summarySection");
+    const statusChip = document.getElementById("statusChip");
+    const summaryMessage = document.getElementById("summaryMessage");
+    const summaryKeyData = document.getElementById("summaryKeyData");
+
+    const progressWrapper = document.getElementById("progressWrapper");
+    const progressBarInner = document.getElementById("progressBarInner");
+    const progressPercentLabel = document.getElementById("progressPercentLabel");
+
+    const stepsSection = document.getElementById("stepsSection");
+    const stepsList = document.getElementById("stepsList");
+
+    const detailsSection = document.getElementById("detailsSection");
+    const toggleDetailsButton = document.getElementById("toggleDetailsButton");
+    const detailsContainer = document.getElementById("detailsContainer");
+    const detailsPre = document.getElementById("detailsPre");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const folioCompraInput = document.getElementById("folioCompra");
+      const brandNumberInput = document.getElementById("brandNumber");
+      const gatewaySelect = document.getElementById("gateway");
+      const tipoOperacionRadio = document.querySelector(
+        'input[name="tipoOperacion"]:checked'
+      );
+
+      const folioCompra = folioCompraInput.value.trim();
+      const brandNumber = brandNumberInput.value.trim();
+      const gateway = gatewaySelect.value;
+      const tipoOperacion = tipoOperacionRadio ? tipoOperacionRadio.value : null;
+
+      if (!folioCompra) return;
+
+      setLoading(true);
+      resetView();
+
+      try {
+        const response = await fetch("/run-flow", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ folioCompra, brandNumber, gateway, tipoOperacion })
+        });
+
+        const data = await response.json();
+        const httpOk = response.ok;
+
+        renderSummary(data, httpOk);
+        renderSteps(data);
+        renderDetails(data);
+        renderProgress(data);
+
+      } catch (err) {
+        const errorData = {
+          status: "ERROR_FRONT",
+          mensaje: "Error llamando al backend",
+          detalle: err.message,
+          log: ["Error en frontend: " + err.message]
+        };
+        renderSummary(errorData, false);
+        renderSteps(errorData);
+        renderDetails(errorData);
+        renderProgress(errorData);
+      } finally {
+        setLoading(false);
+      }
+    });
+
+    clearButton.addEventListener("click", () => {
+      document.getElementById("folioCompra").value = "";
+      document.getElementById("brandNumber").value = "";
+      document.getElementById("gateway").value = "mercadopago";
+      const recargaRadio = document.querySelector(
+        'input[name="tipoOperacion"][value="recarga"]'
+      );
+      if (recargaRadio) recargaRadio.checked = true;
+      resetView();
+    });
+
+    toggleDetailsButton.addEventListener("click", () => {
+      if (detailsContainer.style.display === "none" || detailsContainer.style.display === "") {
+        detailsContainer.style.display = "block";
+        toggleDetailsButton.textContent = "Ocultar detalles";
+      } else {
+        detailsContainer.style.display = "none";
+        toggleDetailsButton.textContent = "Ver detalles";
+      }
+    });
+
+    function setLoading(isLoading) {
+      runButton.disabled = isLoading;
+      runButton.textContent = isLoading ? "Ejecutando..." : "Ejecutar flujo";
+    }
+
+    function resetView() {
+      summarySection.classList.add("hidden");
+      stepsSection.classList.add("hidden");
+      detailsSection.classList.add("hidden");
+
+      summaryMessage.textContent = "";
+      summaryKeyData.innerHTML = "";
+
+      stepsList.innerHTML = "";
+
+      detailsPre.textContent = "";
+      detailsContainer.style.display = "none";
+      toggleDetailsButton.textContent = "Ver detalles";
+
+      progressBarInner.style.width = "0%";
+      progressBarInner.classList.remove("ok", "error");
+      progressPercentLabel.textContent = "0%";
+    }
+
+    function renderSummary(data, httpOk) {
+      summarySection.classList.remove("hidden");
+
+      const status = data.status || (httpOk ? "OK" : "ERROR");
+      const mensaje = data.mensaje || "Sin mensaje";
+
+      statusChip.className = "status-bar";
+      const chipChildren = statusChip.querySelectorAll("span");
+      const dotSpan = chipChildren[0];
+      const textSpan = chipChildren[1];
+
+      if (status === "OK") {
+        statusChip.classList.add("status-ok");
+        textSpan.textContent = "Éxito";
+      } else if (status === "SIN_RESULTADOS" || 
+                 status === "SIN_REGISTRO_PROD" || 
+                 status === "GATEWAY_NO_IMPLEMENTADO" ||
+                 status === "EXISTE_EN_UAT") {
+        statusChip.classList.add("status-warning");
+        textSpan.textContent = "Advertencia";
+      } else {
+        statusChip.classList.add("status-error");
+        textSpan.textContent = "Error";
+      }
+
+      summaryMessage.textContent = mensaje;
+
+      const keyParts = [];
+      if (data.folioCompra) {
+        keyParts.push("<strong>Folio compra:</strong> " + data.folioCompra);
+      }
+      if (data.folioMercado) {
+        keyParts.push("<strong>Folio MP:</strong> " + data.folioMercado);
+      }
+      if (data.brandNumber) {
+        keyParts.push("<strong>Marca:</strong> " + data.brandNumber);
+      }
+      if (data.gateway) {
+        keyParts.push("<strong>Pasarela:</strong> " + data.gateway);
+      }
+      if (data.tipoOperacion) {
+        keyParts.push("<strong>Tipo operación:</strong> " + data.tipoOperacion);
+      }
+      if (data.httpStatus) {
+        keyParts.push("<strong>HTTP status:</strong> " + data.httpStatus);
+      }
+
+      summaryKeyData.innerHTML = keyParts.join("<br>");
+    }
+
+    function renderSteps(data) {
+      stepsSection.classList.remove("hidden");
+      stepsList.innerHTML = "";
+
+      const logs = Array.isArray(data.log) ? data.log : [];
+      if (logs.length === 0) {
+        const li = document.createElement("li");
+        li.className = "step-neutral";
+        li.innerHTML = '<span class="step-icon"></span><span class="step-text">Sin log disponible</span>';
+        stepsList.appendChild(li);
+        return;
+      }
+
+      logs.forEach((entry) => {
+        const li = document.createElement("li");
+        let cls = "step-neutral";
+
+        const upper = entry.toUpperCase();
+        if (upper.includes("ERROR")) {
+          cls = "step-error";
+        } else if (
+          upper.includes("RESPONDIÓ CORRECTAMENTE") ||
+          upper.includes("ENCONTRADO") ||
+          upper.includes("OK")
+        ) {
+          cls = "step-ok";
+        }
+
+        li.className = cls;
+        li.innerHTML = '<span class="step-icon"></span><span class="step-text">' +
+          entry +
+          "</span>";
+        stepsList.appendChild(li);
+      });
+    }
+
+    function renderDetails(data) {
+      detailsSection.classList.remove("hidden");
+      detailsPre.textContent = JSON.stringify(data, null, 2);
+      detailsContainer.style.display = "none";
+      toggleDetailsButton.textContent = "Ver detalles";
+    }
+
+    function renderProgress(data) {
+      const logs = Array.isArray(data.log) ? data.log : [];
+      if (logs.length === 0) {
+        progressBarInner.style.width = "0%";
+        progressPercentLabel.textContent = "0%";
+        return;
+      }
+
+      const phases = [
+        "Recibí folioCompra",
+        "Llamando API 1",
+        "API 1 respondió correctamente",
+        "Consultando BD PROD",
+        "Registro encontrado en PROD"
+        // Aquí más adelante añadimos fases para UAT y API2
+      ];
+
+      let completed = 0;
+      const upperLogs = logs.map(l => l.toUpperCase());
+      phases.forEach(p => {
+        const up = p.toUpperCase();
+        if (upperLogs.some(l => l.includes(up))) {
+          completed += 1;
+        }
+      });
+
+      const total = phases.length;
+      const percent = Math.round((completed / total) * 100);
+
+      progressBarInner.style.width = percent + "%";
+      progressPercentLabel.textContent = percent + "%";
+
+      const status = (data.status || "").toUpperCase();
+      progressBarInner.classList.remove("ok", "error");
+
+      if (status === "OK") {
+        progressBarInner.classList.add("ok");
+      } else if (status.includes("ERROR")) {
+        progressBarInner.classList.add("error");
+      }
+    }
+  </script>
+  <footer> 
+    <p style="text-align: center; font-size: 0.8rem; color: var(--text-muted);">
+      &copy; 2025 Villegas Olvera Edgar.
+    </p>
+  </footer>
+</body>
+</html>
