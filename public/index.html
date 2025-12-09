@@ -92,6 +92,7 @@
     }
 
     input[type="text"],
+    input[type="date"],
     select {
       width: 100%;
       max-width: 320px;
@@ -103,6 +104,7 @@
     }
 
     input[type="text"]:focus,
+    input[type="date"]:focus,
     select:focus {
       outline: none;
       border-color: var(--primary);
@@ -335,6 +337,7 @@
       }
 
       input[type="text"],
+      input[type="date"],
       select {
         max-width: 100%;
       }
@@ -387,6 +390,16 @@
               <option value="openpay">OpenPay</option>
               <option value="stripe">Stripe</option>
             </select>
+          </div>
+
+          <div class="field-row hidden" id="purchaseDateRow">
+            <label for="purchaseDate">Fecha de compra (solo PayPal):</label><br />
+            <input
+              type="date"
+              id="purchaseDate"
+              name="purchaseDate"
+              placeholder="YYYY-MM-DD"
+            />
           </div>
 
           <div class="field-row">
@@ -475,12 +488,25 @@
     const detailsContainer = document.getElementById("detailsContainer");
     const detailsPre = document.getElementById("detailsPre");
 
+    const gatewaySelect = document.getElementById("gateway");
+    const purchaseDateRow = document.getElementById("purchaseDateRow");
+    const purchaseDateInput = document.getElementById("purchaseDate");
+
+    gatewaySelect.addEventListener("change", () => {
+      const gwValue = gatewaySelect.value;
+      if (gwValue === "paypal") {
+        purchaseDateRow.classList.remove("hidden");
+      } else {
+        purchaseDateRow.classList.add("hidden");
+        purchaseDateInput.value = "";
+      }
+    });
+
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
 
       const folioCompraInput = document.getElementById("folioCompra");
       const brandNumberInput = document.getElementById("brandNumber");
-      const gatewaySelect = document.getElementById("gateway");
       const tipoOperacionRadio = document.querySelector(
         'input[name="tipoOperacion"]:checked'
       );
@@ -489,16 +515,15 @@
       const brandNumber = brandNumberInput.value.trim();
       const gateway = gatewaySelect.value;
       const tipoOperacion = tipoOperacionRadio ? tipoOperacionRadio.value : null;
+      const purchaseDate = purchaseDateInput ? purchaseDateInput.value.trim() : "";
 
       if (!folioCompra) return;
 
       setLoading(true);
       resetViewBeforeRun();
 
-      // Estado visual: ejecutando
       setStatusRunning("Ejecutando flujo, esperando respuesta del backend...");
 
-      // Control de timeout para evitar que quede colgado sin explicación
       const controller = new AbortController();
       const timeoutMs = 850000; // 850 segundos = 14.16 minutos
       const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
@@ -507,7 +532,13 @@
         const response = await fetch("/run-flow", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ folioCompra, brandNumber, gateway, tipoOperacion }),
+          body: JSON.stringify({
+            folioCompra,
+            brandNumber,
+            gateway,
+            tipoOperacion,
+            purchaseDate
+          }),
           signal: controller.signal
         });
 
@@ -550,6 +581,9 @@
       document.getElementById("folioCompra").value = "";
       document.getElementById("brandNumber").value = "";
       document.getElementById("gateway").value = "mercadopago";
+      purchaseDateInput.value = "";
+      purchaseDateRow.classList.add("hidden");
+
       const recargaRadio = document.querySelector(
         'input[name="tipoOperacion"][value="recarga"]'
       );
@@ -625,8 +659,10 @@
       } else if (
         status === "SIN_RESULTADOS" ||
         status === "SIN_REGISTRO_PROD" ||
+        status === "SIN_REGISTRO_PROD_PAYPAL" ||
         status === "GATEWAY_NO_IMPLEMENTADO" ||
-        status === "EXISTE_EN_UAT"
+        status === "EXISTE_EN_UAT" ||
+        status === "EXISTE_EN_UAT_PAYPAL"
       ) {
         statusChip.classList.add("status-warning");
         textSpan.textContent = "Advertencia";
@@ -649,6 +685,9 @@
       }
       if (data.folioMercado) {
         keyParts.push("<strong>Folio MP:</strong> " + data.folioMercado);
+      }
+      if (data.purchaseDate) {
+        keyParts.push("<strong>Fecha compra:</strong> " + data.purchaseDate);
       }
       if (data.brandNumber) {
         keyParts.push("<strong>Marca:</strong> " + data.brandNumber);
@@ -712,7 +751,6 @@
       toggleDetailsButton.textContent = "Ver detalles";
     }
 
-    // Estado inicial
     resetFullView();
   </script>
   <footer>
