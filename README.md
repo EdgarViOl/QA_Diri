@@ -118,4 +118,8 @@ Si alguna validación falla, responde con:
   "mensaje": "texto explicativo"
 }
 ```
+### 3.2. Selección de pasarela
 
+Actualmente solo se implementa el flujo para mercadopago.
+
+Si se recibe cualquier otro valor, responde con:

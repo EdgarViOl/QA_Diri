@@ -197,10 +197,21 @@
       color: var(--warn);
     }
 
+    .status-idle {
+      background: #eff6ff;
+      color: #1d4ed8;
+    }
+
+    .status-running {
+      background: #e0f2fe;
+      color: #0369a1;
+    }
+
     .status-dot {
       width: 8px;
       height: 8px;
       border-radius: 50%;
+      background: #9ca3af;
     }
 
     .status-ok .status-dot {
@@ -215,55 +226,27 @@
       background: var(--warn);
     }
 
+    .status-idle .status-dot {
+      background: #3b82f6;
+    }
+
+    .status-running .status-dot {
+      background: #0284c7;
+    }
+
     .summary-message {
       font-size: 0.9rem;
-      margin-bottom: 8px;
+      margin-bottom: 4px;
     }
 
     .summary-keydata {
       font-size: 0.85rem;
       color: var(--text-muted);
+      margin-bottom: 6px;
     }
 
     .summary-keydata strong {
       color: var(--text-main);
-    }
-
-    .progress-wrapper {
-      margin-top: 8px;
-      margin-bottom: 4px;
-    }
-
-    .progress-label-row {
-      display: flex;
-      justify-content: space-between;
-      font-size: 0.75rem;
-      color: var(--text-muted);
-      margin-bottom: 4px;
-    }
-
-    .progress-bar {
-      width: 100%;
-      height: 6px;
-      border-radius: 999px;
-      background: #e5e7eb;
-      overflow: hidden;
-    }
-
-    .progress-bar-inner {
-      height: 100%;
-      width: 0;
-      border-radius: inherit;
-      background: var(--primary);
-      transition: width 0.25s ease-out, background 0.25s ease-out;
-    }
-
-    .progress-bar-inner.ok {
-      background: var(--ok);
-    }
-
-    .progress-bar-inner.error {
-      background: var(--error);
     }
 
     .steps-list {
@@ -362,11 +345,11 @@
   <div class="wrapper">
     <div class="header-card">
       <a href="https:%2F%2Fwww.diri.mx/" title="" target="_blank" data-saferedirecturl="https://www.google.com/url?q=https://kfk3prh7.r.us-east-1.awstrack.me/L0/https:%252F%252Fwww.diri.mx/1/0100019a7bd55f3f-0ffdd25a-53cd-42c3-9c4b-1ab1d5e080a7-000000/J71UPJEfe-h_5LtjozMVhn82f18%3D452&amp;source=gmail&amp;ust=1763676771009000&amp;usg=AOvVaw3u8_yKhexzC65xftJNSME-">
-                <img src="https://pinpointemailimagenes.s3.amazonaws.com/DIRI_EMAILS/renov_anual/diri_blanco.png" alt="Logo diri blanco" width="100" style="display:block;border:0;width:20%;height:auto;margin:0 auto" class="CToWUd" data-bit="iit">
-              </a>
+        <img src="https://pinpointemailimagenes.s3.amazonaws.com/DIRI_EMAILS/renov_anual/diri_blanco.png" alt="Logo diri blanco" width="100" style="display:block;border:0;width:20%;height:auto;margin:0 auto" class="CToWUd" data-bit="iit">
+      </a>
       <div class="header-title">QA | Simulador de Pagos</div>
       <p class="header-subtitle">
-        Ejecución orquestada: Pasarela → PROD → (UAT / API 2 en siguientes fases).
+        Ejecución orquestada: Pasarela → Webhook → dbPROD → dbUAT → APIs → MongoDB.
       </p>
     </div>
 
@@ -376,7 +359,7 @@
         <div class="section-title">Entrada de búsqueda</div>
         <form id="flowForm">
           <div class="field-row">
-            <label for="folioCompra">Folio de compra (external_reference):</label><br />
+            <label for="folioCompra">Folio de compra:</label><br />
             <input
               type="text"
               id="folioCompra"
@@ -440,25 +423,17 @@
         </form>
       </div>
 
-      <!-- Sección: Resumen / Estado + Progreso -->
-      <div class="section hidden" id="summarySection">
-        <div id="statusChip" class="status-bar">
+      <!-- Sección: Resumen / Estado -->
+      <div class="section" id="summarySection">
+        <div id="statusChip" class="status-bar status-idle">
           <span class="status-dot"></span>
-          <span></span>
+          <span>Listo para ejecutar</span>
         </div>
 
-        <div class="summary-message" id="summaryMessage"></div>
+        <div class="summary-message" id="summaryMessage">
+          Ingresar folio de compra y ejecutar el flujo.
+        </div>
         <div class="summary-keydata" id="summaryKeyData"></div>
-
-        <div class="progress-wrapper" id="progressWrapper">
-          <div class="progress-label-row">
-            <span>Progreso del flujo</span>
-            <span id="progressPercentLabel">0%</span>
-          </div>
-          <div class="progress-bar">
-            <div class="progress-bar-inner" id="progressBarInner"></div>
-          </div>
-        </div>
       </div>
 
       <!-- Sección: Checklist de pasos -->
@@ -492,10 +467,6 @@
     const summaryMessage = document.getElementById("summaryMessage");
     const summaryKeyData = document.getElementById("summaryKeyData");
 
-    const progressWrapper = document.getElementById("progressWrapper");
-    const progressBarInner = document.getElementById("progressBarInner");
-    const progressPercentLabel = document.getElementById("progressPercentLabel");
-
     const stepsSection = document.getElementById("stepsSection");
     const stepsList = document.getElementById("stepsList");
 
@@ -522,14 +493,25 @@
       if (!folioCompra) return;
 
       setLoading(true);
-      resetView();
+      resetViewBeforeRun();
+
+      // Estado visual: ejecutando
+      setStatusRunning("Ejecutando flujo, esperando respuesta del backend...");
+
+      // Control de timeout para evitar que quede colgado sin explicación
+      const controller = new AbortController();
+      const timeoutMs = 850000; // 850 segundos = 14.16 minutos
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
       try {
         const response = await fetch("/run-flow", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ folioCompra, brandNumber, gateway, tipoOperacion })
+          body: JSON.stringify({ folioCompra, brandNumber, gateway, tipoOperacion }),
+          signal: controller.signal
         });
+
+        clearTimeout(timeoutId);
 
         const data = await response.json();
         const httpOk = response.ok;
@@ -537,19 +519,28 @@
         renderSummary(data, httpOk);
         renderSteps(data);
         renderDetails(data);
-        renderProgress(data);
 
       } catch (err) {
+        clearTimeout(timeoutId);
+
+        let status = "ERROR_FRONT";
+        let mensaje =
+          "Error llamando al backend. Revisar conectividad o disponibilidad del servicio.";
+        if (err.name === "AbortError") {
+          status = "ERROR_FRONT_TIMEOUT";
+          mensaje =
+            "Tiempo de espera agotado al llamar al backend (más de 45 segundos sin respuesta).";
+        }
+
         const errorData = {
-          status: "ERROR_FRONT",
-          mensaje: "Error llamando al backend",
+          status,
+          mensaje,
           detalle: err.message,
           log: ["Error en frontend: " + err.message]
         };
         renderSummary(errorData, false);
         renderSteps(errorData);
         renderDetails(errorData);
-        renderProgress(errorData);
       } finally {
         setLoading(false);
       }
@@ -563,7 +554,7 @@
         'input[name="tipoOperacion"][value="recarga"]'
       );
       if (recargaRadio) recargaRadio.checked = true;
-      resetView();
+      resetFullView();
     });
 
     toggleDetailsButton.addEventListener("click", () => {
@@ -581,45 +572,70 @@
       runButton.textContent = isLoading ? "Ejecutando..." : "Ejecutar flujo";
     }
 
-    function resetView() {
-      summarySection.classList.add("hidden");
+    function setStatusRunning(texto) {
+      statusChip.className = "status-bar status-running";
+      const chipChildren = statusChip.querySelectorAll("span");
+      const textSpan = chipChildren[1];
+      textSpan.textContent = "Ejecutando";
+      summaryMessage.textContent = texto;
+    }
+
+    function resetSummaryIdle() {
+      statusChip.className = "status-bar status-idle";
+      const chipChildren = statusChip.querySelectorAll("span");
+      const textSpan = chipChildren[1];
+      textSpan.textContent = "Listo para ejecutar";
+
+      summaryMessage.textContent = "Ingresar folio de compra y ejecutar el flujo.";
+      summaryKeyData.innerHTML = "";
+    }
+
+    function resetFullView() {
+      resetSummaryIdle();
       stepsSection.classList.add("hidden");
       detailsSection.classList.add("hidden");
 
-      summaryMessage.textContent = "";
-      summaryKeyData.innerHTML = "";
-
       stepsList.innerHTML = "";
-
       detailsPre.textContent = "";
       detailsContainer.style.display = "none";
       toggleDetailsButton.textContent = "Ver detalles";
+    }
 
-      progressBarInner.style.width = "0%";
-      progressBarInner.classList.remove("ok", "error");
-      progressPercentLabel.textContent = "0%";
+    function resetViewBeforeRun() {
+      stepsSection.classList.add("hidden");
+      detailsSection.classList.add("hidden");
+
+      stepsList.innerHTML = "";
+      detailsPre.textContent = "";
+      detailsContainer.style.display = "none";
+      toggleDetailsButton.textContent = "Ver detalles";
     }
 
     function renderSummary(data, httpOk) {
-      summarySection.classList.remove("hidden");
-
       const status = data.status || (httpOk ? "OK" : "ERROR");
       const mensaje = data.mensaje || "Sin mensaje";
 
       statusChip.className = "status-bar";
       const chipChildren = statusChip.querySelectorAll("span");
-      const dotSpan = chipChildren[0];
       const textSpan = chipChildren[1];
 
       if (status === "OK") {
         statusChip.classList.add("status-ok");
         textSpan.textContent = "Éxito";
-      } else if (status === "SIN_RESULTADOS" || 
-                 status === "SIN_REGISTRO_PROD" || 
-                 status === "GATEWAY_NO_IMPLEMENTADO" ||
-                 status === "EXISTE_EN_UAT") {
+      } else if (
+        status === "SIN_RESULTADOS" ||
+        status === "SIN_REGISTRO_PROD" ||
+        status === "GATEWAY_NO_IMPLEMENTADO" ||
+        status === "EXISTE_EN_UAT"
+      ) {
         statusChip.classList.add("status-warning");
         textSpan.textContent = "Advertencia";
+      } else if (status === "ERROR_FRONT_TIMEOUT") {
+        statusChip.classList.add("status-error");
+        textSpan.textContent = "Timeout";
+      } else if (status === "ERROR_FRONT") {
+        statusChip.classList.add("status-error");
+        textSpan.textContent = "Error en frontend";
       } else {
         statusChip.classList.add("status-error");
         textSpan.textContent = "Error";
@@ -658,7 +674,8 @@
       if (logs.length === 0) {
         const li = document.createElement("li");
         li.className = "step-neutral";
-        li.innerHTML = '<span class="step-icon"></span><span class="step-text">Sin log disponible</span>';
+        li.innerHTML =
+          '<span class="step-icon"></span><span class="step-text">Sin log disponible</span>';
         stepsList.appendChild(li);
         return;
       }
@@ -673,13 +690,15 @@
         } else if (
           upper.includes("RESPONDIÓ CORRECTAMENTE") ||
           upper.includes("ENCONTRADO") ||
-          upper.includes("OK")
+          upper.includes("OK") ||
+          upper.includes("VERIFICADO")
         ) {
           cls = "step-ok";
         }
 
         li.className = cls;
-        li.innerHTML = '<span class="step-icon"></span><span class="step-text">' +
+        li.innerHTML =
+          '<span class="step-icon"></span><span class="step-text">' +
           entry +
           "</span>";
         stepsList.appendChild(li);
@@ -693,49 +712,10 @@
       toggleDetailsButton.textContent = "Ver detalles";
     }
 
-    function renderProgress(data) {
-      const logs = Array.isArray(data.log) ? data.log : [];
-      if (logs.length === 0) {
-        progressBarInner.style.width = "0%";
-        progressPercentLabel.textContent = "0%";
-        return;
-      }
-
-      const phases = [
-        "Recibí folioCompra",
-        "Llamando API 1",
-        "API 1 respondió correctamente",
-        "Consultando BD PROD",
-        "Registro encontrado en PROD"
-        // Aquí más adelante añadimos fases para UAT y API2
-      ];
-
-      let completed = 0;
-      const upperLogs = logs.map(l => l.toUpperCase());
-      phases.forEach(p => {
-        const up = p.toUpperCase();
-        if (upperLogs.some(l => l.includes(up))) {
-          completed += 1;
-        }
-      });
-
-      const total = phases.length;
-      const percent = Math.round((completed / total) * 100);
-
-      progressBarInner.style.width = percent + "%";
-      progressPercentLabel.textContent = percent + "%";
-
-      const status = (data.status || "").toUpperCase();
-      progressBarInner.classList.remove("ok", "error");
-
-      if (status === "OK") {
-        progressBarInner.classList.add("ok");
-      } else if (status.includes("ERROR")) {
-        progressBarInner.classList.add("error");
-      }
-    }
+    // Estado inicial
+    resetFullView();
   </script>
-  <footer> 
+  <footer>
     <p style="text-align: center; font-size: 0.8rem; color: var(--text-muted);">
       &copy; 2025 Villegas Olvera Edgar.
     </p>
