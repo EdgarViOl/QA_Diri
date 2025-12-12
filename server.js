@@ -16,6 +16,7 @@
 
 const express = require("express");
 const path = require("path");
+const fs = require("fs");
 const axios = require("axios");
 const { prodPool, uatPool } = require("./db");  // Conexiones a BD PROD y UAT
 const { MongoClient } = require("mongodb");    // Cliente MongoDB para validación
@@ -24,6 +25,12 @@ const app = express();
 
 app.use(express.json());                            // Parsea bodies JSON
 app.use(express.static(path.join(__dirname, "public"))); // Sirve archivos estáticos
+
+// Carpeta donde se generarán los .txt de cada ejecución
+const REPORTS_DIR = path.join(__dirname, "logs");
+
+// Sirve los archivos de reporte por HTTP para descarga desde el frontend
+app.use("/logs", express.static(REPORTS_DIR));
 
 /**
  * ===================== CONFIGURACIÓN API 1 (MERCADO PAGO) =====================
@@ -166,6 +173,330 @@ async function getOrdersCollection() {
 }
 
 /**
+ * Genera un archivo de texto con el resumen completo de la ejecución.
+ * Se llama SIEMPRE (éxito, advertencia o error) antes de responder al cliente.
+ * 
+ * @param {Object} payload - El objeto que se devolverá por JSON al frontend.
+ * @returns {Promise<null | { fileName: string, relativePath: string, absolutePath: string }>}
+ */
+async function writeExecutionReportToFile(payload) {
+  try {
+    await fs.promises.mkdir(REPORTS_DIR, { recursive: true });
+
+    const nowIso = new Date().toISOString();
+    const folio = payload.folioCompra || "sin_folio";
+    const safeFolio = String(folio).replace(/[^a-zA-Z0-9_.-]/g, "_");
+    const fileName = `simulador_pagos_${nowIso.replace(/[:.]/g, "-")}_${safeFolio}.txt`;
+    const filePath = path.join(REPORTS_DIR, fileName);
+
+    const status = payload.status || "desconocido";
+    const mensaje = payload.mensaje || "";
+    const logArr = Array.isArray(payload.log) ? payload.log : [];
+
+    const {
+      folioCompra,
+      brandNumber,
+      dn,
+      gateway,
+      tipoOperacion,
+      purchaseDate,
+      folioMercado,
+      idrecurso,
+      registroProd,
+      registroProdPaypal,
+      registroProdOpenpay,
+      registroUatInsertMeta,
+      registroUatInsertMetaPaypal,
+      registroUatInsertOpenpay,
+      metadataRaw,
+      metadataParsed,
+      metadataRawPaypal,
+      metadataParsedPaypal,
+      metadataRawOpenpay,
+      metadataParsedOpenpay,
+      api1Response,
+      api2Response,
+      apiPaypalResponse,
+      apiOpenpayResponse,
+      openpayApi4Body,
+      mongoOrderFound,
+      mongoOrder,
+      detalleConsumoAntesJson,
+      detalleConsumoDespuesJson,
+      detalleConsumoDiff,
+      sqlCode,
+      httpStatus,
+      apiErrorBody,
+      api2ErrorBody,
+      apiPaypalErrorBody,
+      apiOpenpayErrorBody,
+      detalle,
+    } = payload;
+
+    const safeJson = (obj) => {
+      if (obj === undefined) return "No disponible.";
+      if (obj === null) return "null";
+      try {
+        return JSON.stringify(obj, null, 2);
+      } catch (e) {
+        return "[No se pudo serializar a JSON]";
+      }
+    };
+
+    const lines = [];
+
+    // ENCABEZADO
+    lines.push("===== QA | Simulador de Pagos DIRI - EJECUCIÓN =====");
+    lines.push(`Fecha/hora servidor (ISO): ${nowIso}`);
+    lines.push("");
+
+    // RESUMEN GENERAL
+    lines.push("---- RESUMEN GENERAL ----");
+    lines.push(`STATUS FINAL: ${status}`);
+    if (mensaje) lines.push(`MENSAJE: ${mensaje}`);
+    if (httpStatus) lines.push(`HTTP STATUS (si aplica): ${httpStatus}`);
+    if (sqlCode) lines.push(`SQL CODE (si aplica): ${sqlCode}`);
+    lines.push("");
+
+    // CONTEXTO DE ENTRADA
+    lines.push("---- CONTEXTO DE ENTRADA ----");
+    if (folioCompra) lines.push(`Folio de compra: ${folioCompra}`);
+    if (brandNumber) lines.push(`Marca (brandNumber): ${brandNumber}`);
+    if (dn) lines.push(`DN: ${dn}`);
+    if (gateway) lines.push(`Pasarela: ${gateway}`);
+    if (tipoOperacion) lines.push(`Tipo de operación: ${tipoOperacion}`);
+    if (purchaseDate) lines.push(`Fecha de compra (PayPal): ${purchaseDate}`);
+    if (folioMercado) lines.push(`Folio MercadoPago: ${folioMercado}`);
+    if (idrecurso) lines.push(`idrecurso PayPal: ${idrecurso}`);
+    lines.push("");
+
+    // LOG PASO A PASO
+    lines.push("---- LOG PASO A PASO ----");
+    if (logArr.length === 0) {
+      lines.push("No hay log disponible.");
+    } else {
+      for (const entry of logArr) {
+        lines.push(`- ${entry}`);
+      }
+    }
+    lines.push("");
+
+    // DETALLE CONSUMO DN ANTES / DESPUÉS / DIFF
+    lines.push("---- DETALLE CONSUMO DN - ANTES_DE_REPROCESO ----");
+    lines.push(safeJson(detalleConsumoAntesJson));
+    lines.push("");
+
+    lines.push("---- DETALLE CONSUMO DN - DESPUES_DE_REPROCESO ----");
+    lines.push(safeJson(detalleConsumoDespuesJson));
+    lines.push("");
+
+    lines.push("---- DIFERENCIAS DETALLE CONSUMO (ANTES vs DESPUES) ----");
+    if (Array.isArray(detalleConsumoDiff) && detalleConsumoDiff.length > 0) {
+      lines.push(safeJson(detalleConsumoDiff));
+    } else {
+      lines.push("Sin diferencias o no se pudo calcular diff.");
+    }
+    lines.push("");
+
+    // SECCIÓN MERCADOPAGO
+    if (
+      metadataRaw !== undefined ||
+      metadataParsed !== undefined ||
+      api1Response !== undefined ||
+      api2Response !== undefined ||
+      registroProd !== undefined ||
+      registroUatInsertMeta !== undefined
+    ) {
+      lines.push("---- DETALLE MERCADOPAGO ----");
+      if (registroProd !== undefined) {
+        lines.push(">>> Registro PROD (diri_webhook_mercadopago):");
+        lines.push(safeJson(registroProd));
+      }
+      if (registroUatInsertMeta !== undefined) {
+        lines.push(">>> Resultado insert/estatus en UAT (MercadoPago):");
+        lines.push(safeJson(registroUatInsertMeta));
+      }
+      if (api1Response !== undefined) {
+        lines.push(">>> Respuesta API MercadoPago v1/payments/search:");
+        lines.push(safeJson(api1Response));
+      }
+      if (metadataRaw !== undefined) {
+        lines.push(">>> Metadata Raw (MercadoPago):");
+        lines.push(safeJson(metadataRaw));
+      }
+      if (metadataParsed !== undefined) {
+        lines.push(">>> Metadata Parseada (MercadoPago):");
+        lines.push(safeJson(metadataParsed));
+      }
+      if (api2Response !== undefined) {
+        lines.push(">>> Respuesta API procesanotificacionmercadopago:");
+        lines.push(safeJson(api2Response));
+      }
+      lines.push("");
+    }
+
+    // SECCIÓN PAYPAL
+    if (
+      metadataRawPaypal !== undefined ||
+      metadataParsedPaypal !== undefined ||
+      apiPaypalResponse !== undefined ||
+      registroProdPaypal !== undefined ||
+      registroUatInsertMetaPaypal !== undefined
+    ) {
+      lines.push("---- DETALLE PAYPAL ----");
+      if (registroProdPaypal !== undefined) {
+        lines.push(">>> Registro PROD (diri_webhook_paypal):");
+        lines.push(safeJson(registroProdPaypal));
+      }
+      if (registroUatInsertMetaPaypal !== undefined) {
+        lines.push(">>> Resultado insert en UAT (PayPal):");
+        lines.push(safeJson(registroUatInsertMetaPaypal));
+      }
+      if (metadataRawPaypal !== undefined) {
+        lines.push(">>> Metadata Raw PayPal:");
+        lines.push(safeJson(metadataRawPaypal));
+      }
+      if (metadataParsedPaypal !== undefined) {
+        lines.push(">>> Metadata Parseada PayPal:");
+        lines.push(safeJson(metadataParsedPaypal));
+      }
+      if (apiPaypalResponse !== undefined) {
+        lines.push(">>> Respuesta API paypalwebhook:");
+        lines.push(safeJson(apiPaypalResponse));
+      }
+      lines.push("");
+    }
+
+    // SECCIÓN OPENPAY
+    if (
+      metadataRawOpenpay !== undefined ||
+      metadataParsedOpenpay !== undefined ||
+      apiOpenpayResponse !== undefined ||
+      openpayApi4Body !== undefined ||
+      registroProdOpenpay !== undefined ||
+      registroUatInsertOpenpay !== undefined
+    ) {
+      lines.push("---- DETALLE OPENPAY ----");
+      if (registroProdOpenpay !== undefined) {
+        lines.push(">>> Registro PROD (diri_webhook_openpay):");
+        lines.push(safeJson(registroProdOpenpay));
+      }
+      if (registroUatInsertOpenpay !== undefined) {
+        lines.push(">>> Resultado insert en UAT (OpenPay):");
+        lines.push(safeJson(registroUatInsertOpenpay));
+      }
+      if (metadataRawOpenpay !== undefined) {
+        lines.push(">>> Metadata Raw OpenPay:");
+        lines.push(safeJson(metadataRawOpenpay));
+      }
+      if (metadataParsedOpenpay !== undefined) {
+        lines.push(">>> Metadata Parseada OpenPay:");
+        lines.push(safeJson(metadataParsedOpenpay));
+      }
+      if (openpayApi4Body !== undefined) {
+        lines.push(">>> Body enviado a API webhookopenpay:");
+        lines.push(safeJson(openpayApi4Body));
+      }
+      if (apiOpenpayResponse !== undefined) {
+        lines.push(">>> Respuesta API webhookopenpay:");
+        lines.push(safeJson(apiOpenpayResponse));
+      }
+      lines.push("");
+    }
+
+    // SECCIÓN MONGODB
+    if (mongoOrderFound !== undefined || mongoOrder !== undefined) {
+      lines.push("---- MONGODB ECOMMERCEDB.tbl_orders ----");
+      if (mongoOrderFound !== undefined) {
+        lines.push(`Orden encontrada: ${mongoOrderFound ? "Sí" : "No"}`);
+      }
+      if (mongoOrder !== undefined) {
+        lines.push(safeJson(mongoOrder));
+      }
+      lines.push("");
+    }
+
+    // SECCIÓN ERRORES DETALLADOS (SI APLICA)
+    if (
+      detalle !== undefined ||
+      apiErrorBody !== undefined ||
+      api2ErrorBody !== undefined ||
+      apiPaypalErrorBody !== undefined ||
+      apiOpenpayErrorBody !== undefined
+    ) {
+      lines.push("---- DETALLE DE ERRORES (SI EXISTEN) ----");
+      if (detalle !== undefined) {
+        lines.push(">>> detalle:");
+        lines.push(safeJson(detalle));
+      }
+      if (apiErrorBody !== undefined) {
+        lines.push(">>> apiErrorBody:");
+        lines.push(safeJson(apiErrorBody));
+      }
+      if (api2ErrorBody !== undefined) {
+        lines.push(">>> api2ErrorBody:");
+        lines.push(safeJson(api2ErrorBody));
+      }
+      if (apiPaypalErrorBody !== undefined) {
+        lines.push(">>> apiPaypalErrorBody:");
+        lines.push(safeJson(apiPaypalErrorBody));
+      }
+      if (apiOpenpayErrorBody !== undefined) {
+        lines.push(">>> apiOpenpayErrorBody:");
+        lines.push(safeJson(apiOpenpayErrorBody));
+      }
+      lines.push("");
+    }
+
+    const finalContent = lines.join("\n");
+    await fs.promises.writeFile(filePath, finalContent, "utf8");
+
+    return {
+      fileName,
+      relativePath: `/logs/${fileName}`,
+      absolutePath: filePath,
+    };
+  } catch (err) {
+    // Importante: NO reventar el flujo si falla la escritura del archivo.
+    console.error("ERROR al generar archivo de reporte de ejecución:", err.message);
+    return null;
+  }
+}
+
+/**
+ * Helper para responder al frontend y SIEMPRE generar el .txt antes.
+ * 
+ * @param {object} res - Response de Express
+ * @param {number} httpStatus - Código HTTP a devolver
+ * @param {object} payload - JSON de respuesta al frontend
+ */
+async function sendJsonWithReport(res, httpStatus, payload) {
+  let reportInfo = null;
+
+  try {
+    reportInfo = await writeExecutionReportToFile(payload);
+  } catch (err) {
+    console.error(
+      "ERROR en sendJsonWithReport al intentar escribir el archivo de reporte:",
+      err.message
+    );
+  }
+
+  const responseBody = { ...payload };
+
+  if (reportInfo) {
+    if (!responseBody.reportFileName) {
+      responseBody.reportFileName = reportInfo.fileName;
+    }
+    if (!responseBody.reportUrl) {
+      responseBody.reportUrl = reportInfo.relativePath;
+    }
+  }
+
+  return res.status(httpStatus).json(responseBody);
+}
+
+/**
  * ======================= ENDPOINT PRINCIPAL /run-flow ==========================
  * 
  * POST /run-flow
@@ -216,25 +547,43 @@ app.post("/run-flow", async (req, res) => {
       folioCompra.length > 100
     ) {
       console.log("DEBUG /run-flow: VALIDACION_ERROR en folioCompra");
-      return res.status(400).json({
+      return sendJsonWithReport(res, 400, {
         status: "VALIDACION_ERROR",
         mensaje: "folioCompra no es válido",
+        folioCompra,
+        brandNumber,
+        dn,
+        gateway,
+        tipoOperacion,
+        log,
       });
     }
 
     if (brandNumber && !/^[0-9]{1,6}$/.test(brandNumber)) {
       console.log("DEBUG /run-flow: VALIDACION_ERROR en brandNumber");
-      return res.status(400).json({
+      return sendJsonWithReport(res, 400, {
         status: "VALIDACION_ERROR",
         mensaje: "brandNumber debe ser numérico y de longitud razonable",
+        folioCompra,
+        brandNumber,
+        dn,
+        gateway,
+        tipoOperacion,
+        log,
       });
     }
 
     if (!dn || !/^[0-9]{10}$/.test(dn)) {
       console.log("DEBUG /run-flow: VALIDACION_ERROR en dn");
-      return res.status(400).json({
+      return sendJsonWithReport(res, 400, {
         status: "VALIDACION_ERROR",
         mensaje: "dn debe ser numérico de exactamente 10 dígitos",
+        folioCompra,
+        brandNumber,
+        dn,
+        gateway,
+        tipoOperacion,
+        log,
       });
     }
 
@@ -242,9 +591,15 @@ app.post("/run-flow", async (req, res) => {
     const gatewaysPermitidos = ["mercadopago", "paypal", "openpay", "stripe"];
     if (!gatewaysPermitidos.includes(gw)) {
       console.log("DEBUG /run-flow: VALIDACION_ERROR en gateway", gw);
-      return res.status(400).json({
+      return sendJsonWithReport(res, 400, {
         status: "VALIDACION_ERROR",
         mensaje: "Pasarela de pago no permitida",
+        folioCompra,
+        brandNumber,
+        dn,
+        gateway: gw,
+        tipoOperacion,
+        log,
       });
     }
 
@@ -252,9 +607,15 @@ app.post("/run-flow", async (req, res) => {
     const tiposPermitidos = ["recarga", "compra"];
     if (!tiposPermitidos.includes(tipo)) {
       console.log("DEBUG /run-flow: VALIDACION_ERROR en tipoOperacion", tipo);
-      return res.status(400).json({
+      return sendJsonWithReport(res, 400, {
         status: "VALIDACION_ERROR",
         mensaje: "Tipo de operación no permitido",
+        folioCompra,
+        brandNumber,
+        dn,
+        gateway: gw,
+        tipoOperacion: tipo,
+        log,
       });
     }
 
@@ -267,10 +628,17 @@ app.post("/run-flow", async (req, res) => {
             purchaseDate,
           }
         );
-        return res.status(400).json({
+        return sendJsonWithReport(res, 400, {
           status: "VALIDACION_ERROR",
           mensaje:
             "Para PayPal se requiere purchaseDate en formato YYYY-MM-DD (ej. 2025-12-02).",
+          folioCompra,
+          brandNumber,
+          dn,
+          gateway: gw,
+          tipoOperacion: tipo,
+          purchaseDate,
+          log,
         });
       }
     }
@@ -339,7 +707,7 @@ app.post("/run-flow", async (req, res) => {
       if (results.length === 0) {
         log.push("La búsqueda no devolvió pagos para esa external_reference");
         console.log("DEBUG /run-flow: SIN_RESULTADOS en MercadoPago");
-        return res.status(404).json({
+        return sendJsonWithReport(res, 404, {
           status: "SIN_RESULTADOS",
           mensaje:
             "No se encontraron pagos para esa referencia en MercadoPago (v1/payments/search).",
@@ -349,6 +717,9 @@ app.post("/run-flow", async (req, res) => {
           gateway: gw,
           tipoOperacion: tipo,
           api1Response: data,
+          detalleConsumoAntesJson: detalleConsumoAntes,
+          detalleConsumoDespuesJson: detalleConsumoDespues,
+          detalleConsumoDiff,
           log,
         });
       }
@@ -383,7 +754,7 @@ app.post("/run-flow", async (req, res) => {
           "No se encontró ningún registro en PROD para ese folio_mercadopago (diri_webhook_mercadopago)."
         );
         console.log("DEBUG /run-flow: SIN_REGISTRO_PROD");
-        return res.status(404).json({
+        return sendJsonWithReport(res, 404, {
           status: "SIN_REGISTRO_PROD",
           mensaje:
             "No hay registro en PROD para ese pago en la tabla diri_webhook_mercadopago.",
@@ -395,6 +766,9 @@ app.post("/run-flow", async (req, res) => {
           folioMercado,
           rowsProd: [],
           api1Response: data,
+          detalleConsumoAntesJson: detalleConsumoAntes,
+          detalleConsumoDespuesJson: detalleConsumoDespues,
+          detalleConsumoDiff,
           log,
         });
       }
@@ -428,7 +802,7 @@ app.post("/run-flow", async (req, res) => {
           "Registro ya existe en UAT para ese folio_mercadopago; se detiene el flujo (MercadoPago)."
         );
         console.log("DEBUG /run-flow: EXISTE_EN_UAT, no se inserta");
-        return res.status(409).json({
+        return sendJsonWithReport(res, 409, {
           status: "EXISTE_EN_UAT",
           mensaje:
             "El registro ya existe en UAT. Favor de verificar e intentar de nuevo.",
@@ -441,6 +815,9 @@ app.post("/run-flow", async (req, res) => {
           registroProd,
           registroUatExistente: rowsUatExistentes[0],
           api1Response: data,
+          detalleConsumoAntesJson: detalleConsumoAntes,
+          detalleConsumoDespuesJson: detalleConsumoDespues,
+          detalleConsumoDiff,
           log,
         });
       }
@@ -541,7 +918,7 @@ app.post("/run-flow", async (req, res) => {
           "brandNumber es obligatorio para API procesanotificacionmercadopago (MercadoPago)."
         );
         console.log("DEBUG /run-flow: BRAND_REQUIRED_FOR_API2");
-        return res.status(400).json({
+        return sendJsonWithReport(res, 400, {
           status: "BRAND_REQUIRED_FOR_API2",
           mensaje:
             "brandNumber es obligatorio para invocar la API procesanotificacionmercadopago.",
@@ -553,6 +930,9 @@ app.post("/run-flow", async (req, res) => {
           folioMercado,
           metadataRaw,
           metadataParsed,
+          detalleConsumoAntesJson: detalleConsumoAntes,
+          detalleConsumoDespuesJson: detalleConsumoDespues,
+          detalleConsumoDiff,
           log,
         });
       }
@@ -562,7 +942,7 @@ app.post("/run-flow", async (req, res) => {
           "Metadata no es un JSON válido; no se puede enviar body correcto a API procesanotificacionmercadopago."
         );
         console.log("DEBUG /run-flow: METADATA_INVALIDA_PARA_API2");
-        return res.status(500).json({
+        return sendJsonWithReport(res, 500, {
           status: "METADATA_INVALIDA_PARA_API2",
           mensaje:
             "La metadata no es un JSON válido; no se puede construir el body para la API procesanotificacionmercadopago.",
@@ -574,6 +954,9 @@ app.post("/run-flow", async (req, res) => {
           folioMercado,
           metadataRaw,
           metadataParsed,
+          detalleConsumoAntesJson: detalleConsumoAntes,
+          detalleConsumoDespuesJson: detalleConsumoDespues,
+          detalleConsumoDiff,
           log,
         });
       }
@@ -601,7 +984,7 @@ app.post("/run-flow", async (req, res) => {
         if (errorApi2.code === "ECONNABORTED") {
           log.push("Timeout al llamar API procesanotificacionmercadopago.");
           console.error("DEBUG /run-flow: ERROR_API2_TIMEOUT");
-          return res.status(504).json({
+          return sendJsonWithReport(res, 504, {
             status: "ERROR_API2_TIMEOUT",
             mensaje:
               "La API procesanotificacionmercadopago tardó más de lo esperado y se interrumpió por timeout.",
@@ -613,12 +996,15 @@ app.post("/run-flow", async (req, res) => {
             folioMercado,
             metadataRaw,
             metadataParsed,
+            detalleConsumoAntesJson: detalleConsumoAntes,
+            detalleConsumoDespuesJson: detalleConsumoDespues,
+            detalleConsumoDiff,
             log,
           });
         }
 
         if (errorApi2.response) {
-          return res.status(errorApi2.response.status || 500).json({
+          return sendJsonWithReport(res, errorApi2.response.status || 500, {
             status: "ERROR_API2",
             mensaje:
               "Error al llamar API procesanotificacionmercadopago.",
@@ -632,11 +1018,14 @@ app.post("/run-flow", async (req, res) => {
             folioMercado,
             metadataRaw,
             metadataParsed,
+            detalleConsumoAntesJson: detalleConsumoAntes,
+            detalleConsumoDespuesJson: detalleConsumoDespues,
+            detalleConsumoDiff,
             log,
           });
         }
 
-        return res.status(500).json({
+        return sendJsonWithReport(res, 500, {
           status: "ERROR_API2",
           mensaje:
             "Error de red al llamar API procesanotificacionmercadopago.",
@@ -649,6 +1038,9 @@ app.post("/run-flow", async (req, res) => {
           folioMercado,
           metadataRaw,
           metadataParsed,
+          detalleConsumoAntesJson: detalleConsumoAntes,
+          detalleConsumoDespuesJson: detalleConsumoDespues,
+          detalleConsumoDiff,
           log,
         });
       }
@@ -671,7 +1063,7 @@ app.post("/run-flow", async (req, res) => {
         detalleApi2 !== "SE PROCESO CON EXITO LA PETICION"
       ) {
         console.log("DEBUG /run-flow: API2_RESPUESTA_NO_OK");
-        return res.status(502).json({
+        return sendJsonWithReport(res, 502, {
           status: "API2_RESPUESTA_NO_OK",
           mensaje:
             "La API procesanotificacionmercadopago respondió pero sin codRespuesta OK o detalle esperado. Revisar contenido.",
@@ -684,6 +1076,9 @@ app.post("/run-flow", async (req, res) => {
           metadataRaw,
           metadataParsed,
           api2Response: api2Data,
+          detalleConsumoAntesJson: detalleConsumoAntes,
+          detalleConsumoDespuesJson: detalleConsumoDespues,
+          detalleConsumoDiff,
           log,
         });
       }
@@ -719,7 +1114,7 @@ app.post("/run-flow", async (req, res) => {
         detalleConsumoDiff = dcDiff;
       }
 
-      return res.json({
+      return sendJsonWithReport(res, 200, {
         status: "OK",
         mensaje:
           "Flujo MercadoPago ejecutado → Folio Mercado obtenido → Registro encontrado en PROD → Insertado en UAT → Estatus actualizado a 'PENDIENTE' → Metadata de UAT preparada → Notificación procesada por API procesanotificacionmercadopago → Validación en tablas de negocio UAT y en MongoDB.",
@@ -784,7 +1179,7 @@ app.post("/run-flow", async (req, res) => {
         log.push(
           "No se encontró ningún registro en PROD PayPal para ese folioCompra y fecha indicada."
         );
-        return res.status(404).json({
+        return sendJsonWithReport(res, 404, {
           status: "SIN_REGISTRO_PROD_PAYPAL",
           mensaje:
             "No hay registro en PROD para ese pago en la tabla diri_webhook_paypal (búsqueda por folioCompra).",
@@ -795,6 +1190,9 @@ app.post("/run-flow", async (req, res) => {
           tipoOperacion: tipo,
           purchaseDate,
           rowsPaypalByFolio: [],
+          detalleConsumoAntesJson: detalleConsumoAntes,
+          detalleConsumoDespuesJson: detalleConsumoDespues,
+          detalleConsumoDiff,
           log,
         });
       }
@@ -811,7 +1209,7 @@ app.post("/run-flow", async (req, res) => {
         log.push(
           "El registro PayPal encontrado no contiene idrecurso; no se puede continuar el flujo."
         );
-        return res.status(500).json({
+        return sendJsonWithReport(res, 500, {
           status: "SIN_IDRECURSO_PAYPAL",
           mensaje:
             "El registro PayPal encontrado no contiene idrecurso. Revisar datos en webhook PayPal PROD.",
@@ -822,6 +1220,9 @@ app.post("/run-flow", async (req, res) => {
           tipoOperacion: tipo,
           purchaseDate,
           primerRegistroFolio,
+          detalleConsumoAntesJson: detalleConsumoAntes,
+          detalleConsumoDespuesJson: detalleConsumoDespues,
+          detalleConsumoDiff,
           log,
         });
       }
@@ -856,7 +1257,7 @@ app.post("/run-flow", async (req, res) => {
         log.push(
           "No se encontró ningún registro en PROD PayPal para ese idrecurso y fecha indicada."
         );
-        return res.status(404).json({
+        return sendJsonWithReport(res, 404, {
           status: "SIN_REGISTRO_PROD_PAYPAL",
           mensaje:
             "No hay registro en PROD para ese pago en la tabla diri_webhook_paypal (búsqueda por idrecurso).",
@@ -868,6 +1269,9 @@ app.post("/run-flow", async (req, res) => {
           purchaseDate,
           idrecurso,
           rowsPaypalByIdrecurso: [],
+          detalleConsumoAntesJson: detalleConsumoAntes,
+          detalleConsumoDespuesJson: detalleConsumoDespues,
+          detalleConsumoDiff,
           log,
         });
       }
@@ -884,7 +1288,7 @@ app.post("/run-flow", async (req, res) => {
         log.push(
           "No se encontró ningún registro PayPal con evento PAYMENT.CAPTURE.COMPLETED para ese idrecurso."
         );
-        return res.status(404).json({
+        return sendJsonWithReport(res, 404, {
           status: "SIN_EVENTO_COMPLETED_PAYPAL",
           mensaje:
             "No se encontró un evento PAYMENT.CAPTURE.COMPLETED para ese idrecurso en PayPal.",
@@ -896,6 +1300,9 @@ app.post("/run-flow", async (req, res) => {
           purchaseDate,
           idrecurso,
           rowsPaypalByIdrecurso,
+          detalleConsumoAntesJson: detalleConsumoAntes,
+          detalleConsumoDespuesJson: detalleConsumoDespues,
+          detalleConsumoDiff,
           log,
         });
       }
@@ -932,7 +1339,7 @@ app.post("/run-flow", async (req, res) => {
         log.push(
           "Registro PayPal ya existe en UAT para ese idrecurso; se detiene el flujo de inserción."
         );
-        return res.status(409).json({
+        return sendJsonWithReport(res, 409, {
           status: "EXISTE_EN_UAT_PAYPAL",
           mensaje:
             "El registro PayPal ya existe en UAT. Favor de verificar e intentar de nuevo.",
@@ -945,6 +1352,9 @@ app.post("/run-flow", async (req, res) => {
           idrecurso,
           registroProdPaypal,
           registroUatPaypalExistente: rowsUatPaypalExistentes[0],
+          detalleConsumoAntesJson: detalleConsumoAntes,
+          detalleConsumoDespuesJson: detalleConsumoDespues,
+          detalleConsumoDiff,
           log,
         });
       }
@@ -1015,7 +1425,7 @@ app.post("/run-flow", async (req, res) => {
         log.push(
           "Metadata PayPal no es un JSON válido; no se puede enviar body correcto a API paypalwebhook."
         );
-        return res.status(500).json({
+        return sendJsonWithReport(res, 500, {
           status: "METADATA_INVALIDA_PARA_API_PAYPAL",
           mensaje:
             "La metadata PayPal no es un JSON válido; no se puede construir el body para la API paypalwebhook.",
@@ -1028,6 +1438,9 @@ app.post("/run-flow", async (req, res) => {
           idrecurso,
           metadataRawPaypal,
           metadataParsedPaypal,
+          detalleConsumoAntesJson: detalleConsumoAntes,
+          detalleConsumoDespuesJson: detalleConsumoDespues,
+          detalleConsumoDiff,
           log,
         });
       }
@@ -1058,7 +1471,7 @@ app.post("/run-flow", async (req, res) => {
 
         if (errorApiPaypal.code === "ECONNABORTED") {
           log.push("Timeout al llamar API paypalwebhook.");
-          return res.status(504).json({
+          return sendJsonWithReport(res, 504, {
             status: "ERROR_API_PAYPAL_TIMEOUT",
             mensaje:
               "La API paypalwebhook tardó más de lo esperado y se interrumpió por timeout.",
@@ -1071,12 +1484,15 @@ app.post("/run-flow", async (req, res) => {
             idrecurso,
             metadataRawPaypal,
             metadataParsedPaypal,
+            detalleConsumoAntesJson: detalleConsumoAntes,
+            detalleConsumoDespuesJson: detalleConsumoDespues,
+            detalleConsumoDiff,
             log,
           });
         }
 
         if (errorApiPaypal.response) {
-          return res.status(errorApiPaypal.response.status || 500).json({
+          return sendJsonWithReport(res, errorApiPaypal.response.status || 500, {
             status: "ERROR_API_PAYPAL",
             mensaje: "Error al llamar API paypalwebhook.",
             httpStatus: errorApiPaypal.response.status,
@@ -1090,11 +1506,14 @@ app.post("/run-flow", async (req, res) => {
             idrecurso,
             metadataRawPaypal,
             metadataParsedPaypal,
+            detalleConsumoAntesJson: detalleConsumoAntes,
+            detalleConsumoDespuesJson: detalleConsumoDespues,
+            detalleConsumoDiff,
             log,
           });
         }
 
-        return res.status(500).json({
+        return sendJsonWithReport(res, 500, {
           status: "ERROR_API_PAYPAL",
           mensaje: "Error de red al llamar API paypalwebhook.",
           detalle: errorApiPaypal.message,
@@ -1107,6 +1526,9 @@ app.post("/run-flow", async (req, res) => {
           idrecurso,
           metadataRawPaypal,
           metadataParsedPaypal,
+          detalleConsumoAntesJson: detalleConsumoAntes,
+          detalleConsumoDespuesJson: detalleConsumoDespues,
+          detalleConsumoDiff,
           log,
         });
       }
@@ -1129,7 +1551,7 @@ app.post("/run-flow", async (req, res) => {
         detallePaypal !== "SE PROCESO CON EXITO LA PETICION"
       ) {
         console.log("DEBUG /run-flow: API_PAYPAL_RESPUESTA_NO_OK");
-        return res.status(502).json({
+        return sendJsonWithReport(res, 502, {
           status: "API_PAYPAL_RESPUESTA_NO_OK",
           mensaje:
             "La API paypalwebhook respondió pero sin codRespuesta OK o detalle esperado. Revisar contenido.",
@@ -1143,6 +1565,9 @@ app.post("/run-flow", async (req, res) => {
           metadataRawPaypal,
           metadataParsedPaypal,
           apiPaypalResponse: apiPaypalData,
+          detalleConsumoAntesJson: detalleConsumoAntes,
+          detalleConsumoDespuesJson: detalleConsumoDespues,
+          detalleConsumoDiff,
           log,
         });
       }
@@ -1171,7 +1596,7 @@ app.post("/run-flow", async (req, res) => {
         detalleConsumoDiff = dcDiff;
       }
 
-      return res.json({
+      return sendJsonWithReport(res, 200, {
         status: "OK",
         mensaje:
           "Flujo PayPal ejecutado → Webhook PROD encontrado → Insertado en UAT → Metadata preparada → Notificación procesada por API paypalwebhook → Validación en tablas de negocio UAT y en MongoDB.",
@@ -1234,7 +1659,7 @@ app.post("/run-flow", async (req, res) => {
         log.push(
           "No se encontró ningún registro OpenPay en PROD para ese folio (diri_webhook_openpay)."
         );
-        return res.status(404).json({
+        return sendJsonWithReport(res, 404, {
           status: "SIN_REGISTRO_PROD_OPENPAY",
           mensaje:
             "No hay registro en PROD para ese folio en la tabla diri_webhook_openpay.",
@@ -1244,6 +1669,9 @@ app.post("/run-flow", async (req, res) => {
           gateway: gw,
           tipoOperacion: tipo,
           rowsProdOpenpay: [],
+          detalleConsumoAntesJson: detalleConsumoAntes,
+          detalleConsumoDespuesJson: detalleConsumoDespues,
+          detalleConsumoDiff,
           log,
         });
       }
@@ -1275,7 +1703,7 @@ app.post("/run-flow", async (req, res) => {
         log.push(
           "Registro OpenPay ya existe en UAT para ese folio; se detiene el flujo de inserción."
         );
-        return res.status(409).json({
+        return sendJsonWithReport(res, 409, {
           status: "EXISTE_EN_UAT_OPENPAY",
           mensaje:
             "El registro OpenPay ya existe en UAT. Favor de verificar e intentar de nuevo.",
@@ -1286,6 +1714,9 @@ app.post("/run-flow", async (req, res) => {
           tipoOperacion: tipo,
           registroProdOpenpay,
           registroUatOpenpayExistente: rowsUatOpenpayExistentes[0],
+          detalleConsumoAntesJson: detalleConsumoAntes,
+          detalleConsumoDespuesJson: detalleConsumoDespues,
+          detalleConsumoDiff,
           log,
         });
       }
@@ -1514,7 +1945,7 @@ app.post("/run-flow", async (req, res) => {
       }
 
       if (!openpayApi4Body) {
-        return res.status(500).json({
+        return sendJsonWithReport(res, 500, {
           status: "METADATA_INVALIDA_PARA_API_OPENPAY",
           mensaje:
             "No se pudo construir el body JSON para webhookopenpay a partir de la metadata.",
@@ -1526,6 +1957,9 @@ app.post("/run-flow", async (req, res) => {
           registroProdOpenpay,
           metadataRawOpenpay,
           metadataParsedOpenpay,
+          detalleConsumoAntesJson: detalleConsumoAntes,
+          detalleConsumoDespuesJson: detalleConsumoDespues,
+          detalleConsumoDiff,
           log,
         });
       }
@@ -1558,7 +1992,7 @@ app.post("/run-flow", async (req, res) => {
 
         if (errorApiOpenpay.code === "ECONNABORTED") {
           log.push("Timeout al llamar API webhookopenpay.");
-          return res.status(504).json({
+          return sendJsonWithReport(res, 504, {
             status: "ERROR_API_OPENPAY_TIMEOUT",
             mensaje:
               "La API webhookopenpay tardó más de lo esperado y se interrumpió por timeout.",
@@ -1571,12 +2005,15 @@ app.post("/run-flow", async (req, res) => {
             metadataRawOpenpay,
             metadataParsedOpenpay,
             openpayApi4Body,
+            detalleConsumoAntesJson: detalleConsumoAntes,
+            detalleConsumoDespuesJson: detalleConsumoDespues,
+            detalleConsumoDiff,
             log,
           });
         }
 
         if (errorApiOpenpay.response) {
-          return res.status(errorApiOpenpay.response.status || 500).json({
+          return sendJsonWithReport(res, errorApiOpenpay.response.status || 500, {
             status: "ERROR_API_OPENPAY",
             mensaje: "Error al llamar API webhookopenpay.",
             httpStatus: errorApiOpenpay.response.status,
@@ -1590,11 +2027,14 @@ app.post("/run-flow", async (req, res) => {
             metadataRawOpenpay,
             metadataParsedOpenpay,
             openpayApi4Body,
+            detalleConsumoAntesJson: detalleConsumoAntes,
+            detalleConsumoDespuesJson: detalleConsumoDespues,
+            detalleConsumoDiff,
             log,
           });
         }
 
-        return res.status(500).json({
+        return sendJsonWithReport(res, 500, {
           status: "ERROR_API_OPENPAY",
           mensaje: "Error de red al llamar API webhookopenpay.",
           detalle: errorApiOpenpay.message,
@@ -1607,6 +2047,9 @@ app.post("/run-flow", async (req, res) => {
           metadataRawOpenpay,
           metadataParsedOpenpay,
           openpayApi4Body,
+          detalleConsumoAntesJson: detalleConsumoAntes,
+          detalleConsumoDespuesJson: detalleConsumoDespues,
+          detalleConsumoDiff,
           log,
         });
       }
@@ -1629,7 +2072,7 @@ app.post("/run-flow", async (req, res) => {
         detalleOpenpay !== "SE PROCESO CON EXITO LA PETICION"
       ) {
         console.log("DEBUG /run-flow: API_OPENPAY_RESPUESTA_NO_OK");
-        return res.status(502).json({
+        return sendJsonWithReport(res, 502, {
           status: "API_OPENPAY_RESPUESTA_NO_OK",
           mensaje:
             "La API webhookopenpay respondió pero sin codRespuesta OK o detalle esperado. Revisar contenido.",
@@ -1643,6 +2086,9 @@ app.post("/run-flow", async (req, res) => {
           metadataParsedOpenpay,
           openpayApi4Body,
           apiOpenpayResponse: apiOpenpayData,
+          detalleConsumoAntesJson: detalleConsumoAntes,
+          detalleConsumoDespuesJson: detalleConsumoDespues,
+          detalleConsumoDiff,
           log,
         });
       }
@@ -1671,7 +2117,7 @@ app.post("/run-flow", async (req, res) => {
         detalleConsumoDiff = dcDiff;
       }
 
-      return res.json({
+      return sendJsonWithReport(res, 200, {
         status: "OK",
         mensaje:
           "Flujo OpenPay ejecutado → Webhook PROD encontrado → Insertado en UAT → Metadata recuperada → JSON para webhookopenpay construido → Notificación reprocesada por API webhookopenpay → Validación en tablas de negocio UAT y en MongoDB.",
@@ -1708,7 +2154,7 @@ app.post("/run-flow", async (req, res) => {
     log.push(
       `Pasarela ${gw} aún no implementada en el backend. Se devuelve GATEWAY_NO_IMPLEMENTADO.`
     );
-    return res.status(400).json({
+    return sendJsonWithReport(res, 400, {
       status: "GATEWAY_NO_IMPLEMENTADO",
       mensaje:
         "Por ahora solo están implementados los flujos para MercadoPago, PayPal y OpenPay.",
@@ -1717,6 +2163,9 @@ app.post("/run-flow", async (req, res) => {
       dn,
       gateway: gw,
       tipoOperacion: tipo,
+      detalleConsumoAntesJson: detalleConsumoAntes,
+      detalleConsumoDespuesJson: detalleConsumoDespues,
+      detalleConsumoDiff,
       log,
     });
   } catch (error) {
@@ -1729,7 +2178,7 @@ app.post("/run-flow", async (req, res) => {
         code: error.code,
         fatal: error.fatal,
       });
-      return res.status(504).json({
+      return sendJsonWithReport(res, 504, {
         status: "ERROR_SQL_TIMEOUT",
         mensaje:
           "La consulta a la base de datos tardó más de lo esperado y se interrumpió por timeout.",
@@ -1743,7 +2192,7 @@ app.post("/run-flow", async (req, res) => {
       console.log("DEBUG /run-flow: error.response presente", {
         status: error.response.status,
       });
-      return res.status(error.response.status || 500).json({
+      return sendJsonWithReport(res, error.response.status || 500, {
         status: "ERROR",
         mensaje: "Error al llamar una de las APIs externas o procesar su respuesta.",
         httpStatus: error.response.status,
@@ -1752,7 +2201,7 @@ app.post("/run-flow", async (req, res) => {
       });
     }
 
-    return res.status(500).json({
+    return sendJsonWithReport(res, 500, {
       status: "ERROR",
       mensaje: "Error de red o interno al ejecutar el flujo.",
       detalle: error.message,

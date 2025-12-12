@@ -1,0 +1,45 @@
+===== QA | Simulador de Pagos DIRI - EJECUCIÓN =====
+Fecha/hora servidor (ISO): 2025-12-12T19:25:31.350Z
+
+---- RESUMEN GENERAL ----
+STATUS FINAL: SIN_RESULTADOS
+MENSAJE: No se encontraron pagos para esa referencia en MercadoPago (v1/payments/search).
+
+---- CONTEXTO DE ENTRADA ----
+Folio de compra: webp_1765565551619
+Marca (brandNumber): 4
+DN: 5667739399
+Pasarela: mercadopago
+Tipo de operación: recarga
+
+---- LOG PASO A PASO ----
+- Recibí folioCompra = webp_1765565551619
+- Marca / brandNumber = 4
+- Pasarela seleccionada = mercadopago
+- Tipo de operación = recarga
+- DN utilizado = 5667739399
+- Llamando API detalle consumo DN (ANTES_DE_REPROCESO) webresources/consultaConsumo (POST)...
+- ERROR al llamar API detalle consumo DN (ANTES_DE_REPROCESO): HTTP 400, body: "{"codRespuesta":"ERROR78","detalle":"Por falta de actividad, tu línea 5667739399 se ha suspendido. Si quieres recuperarla, por favor comunícate con nosotros.","perfilClienteApp":{"fallaAltan":false}}", mensaje: Request failed with status code 400
+- Llamando API MercadoPago v1/payments/search (GET) con external_reference = folioCompra...
+- API MercadoPago v1/payments/search respondió correctamente.
+- La búsqueda no devolvió pagos para esa external_reference
+
+---- DETALLE CONSUMO DN - ANTES_DE_REPROCESO ----
+null
+
+---- DETALLE CONSUMO DN - DESPUES_DE_REPROCESO ----
+null
+
+---- DIFERENCIAS DETALLE CONSUMO (ANTES vs DESPUES) ----
+Sin diferencias o no se pudo calcular diff.
+
+---- DETALLE MERCADOPAGO ----
+>>> Respuesta API MercadoPago v1/payments/search:
+{
+  "results": [],
+  "paging": {
+    "total": 0,
+    "offset": 0,
+    "limit": 0
+  }
+}

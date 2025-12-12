@@ -347,8 +347,8 @@
 <body>
   <div class="wrapper">
     <div class="header-card">
-      <a href="https:%2F%2Fwww.diri.mx/" title="" target="_blank" data-saferedirecturl="https://www.google.com/url?q=https://kfk3prh7.r.us-east-1.awstrack.me/L0/https:%252F%252Fwww.diri.mx/1/0100019a7bd55f3f-0ffdd25a-53cd-42c3-9c4b-1ab1d5e080a7-000000/J71UPJEfe-h_5LtjozMVhn82f18%3D452&amp;source=gmail&amp;ust=1763676771009000&amp;usg=AOvVaw3u8_yKhexzC65xftJNSME-">
-        <img src="https://pinpointemailimagenes.s3.amazonaws.com/DIRI_EMAILS/renov_anual/diri_blanco.png" alt="Logo diri blanco" width="100" style="display:block;border:0;width:20%;height:auto;margin:0 auto" class="CToWUd" data-bit="iit">
+      <a href="https:%2F%2Fwww.diri.mx/" title="" target="_blank">
+        <img src="https://pinpointemailimagenes.s3.amazonaws.com/DIRI_EMAILS/renov_anual/diri_blanco.png" alt="Logo diri blanco" width="100" style="display:block;border:0;width:20%;height:auto;margin:0 auto">
       </a>
       <div class="header-title">QA | Simulador de Pagos</div>
       <p class="header-subtitle">
@@ -459,6 +459,13 @@
           Ingresar folio de compra y ejecutar el flujo.
         </div>
         <div class="summary-keydata" id="summaryKeyData"></div>
+
+        <!-- Botón de descarga de reporte TXT (última ejecución) -->
+        <div id="downloadReportContainer" class="hidden">
+          <button type="button" class="primary" id="downloadReportButton">
+            Descargar reporte TXT
+          </button>
+        </div>
       </div>
 
       <!-- Sección: Checklist de pasos -->
@@ -487,10 +494,12 @@
     const runButton = document.getElementById("runButton");
     const clearButton = document.getElementById("clearButton");
 
-    const summarySection = document.getElementById("summarySection");
     const statusChip = document.getElementById("statusChip");
     const summaryMessage = document.getElementById("summaryMessage");
     const summaryKeyData = document.getElementById("summaryKeyData");
+
+    const downloadReportContainer = document.getElementById("downloadReportContainer");
+    const downloadReportButton = document.getElementById("downloadReportButton");
 
     const stepsSection = document.getElementById("stepsSection");
     const stepsList = document.getElementById("stepsList");
@@ -574,12 +583,7 @@
       }
 
       if (mensajeAdvertencia) {
-        if (
-          statusChip.classList.contains("status-idle") ||
-          statusChip.classList.contains("status-warning")
-        ) {
-          summaryMessage.textContent = mensajeAdvertencia;
-        }
+        summaryMessage.textContent = mensajeAdvertencia;
       } else if (statusChip.classList.contains("status-idle")) {
         summaryMessage.textContent =
           "Ingresar folio de compra y ejecutar el flujo.";
@@ -617,7 +621,7 @@
       setStatusRunning("Ejecutando flujo, esperando respuesta del backend...");
 
       const controller = new AbortController();
-      const timeoutMs = 850000; // 850 segundos = 14.16 minutos
+      const timeoutMs = 850000;
       const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
       try {
@@ -726,6 +730,10 @@
 
       summaryMessage.textContent = "Ingresar folio de compra y ejecutar el flujo.";
       summaryKeyData.innerHTML = "";
+
+      // ocultar botón de descarga y limpiar handler
+      downloadReportContainer.classList.add("hidden");
+      downloadReportButton.onclick = null;
     }
 
     function resetFullView() {
@@ -747,6 +755,49 @@
       detailsPre.textContent = "";
       detailsContainer.style.display = "none";
       toggleDetailsButton.textContent = "Ver detalles";
+
+      downloadReportContainer.classList.add("hidden");
+      downloadReportButton.onclick = null;
+    }
+
+    function computeReportUrlFromData(data) {
+      if (!data || typeof data !== "object") return null;
+
+      const preferredKeys = [
+        "reportUrl",
+        "reportFileName",
+        "logFileName",
+        "logFile",
+        "txtFileName",
+        "txtReport",
+        "txtPath"
+      ];
+
+      for (const key of preferredKeys) {
+        const value = data[key];
+        if (typeof value === "string" && value.trim() !== "") {
+          const raw = value.trim();
+          if (/^https?:\/\//.test(raw) || raw.startsWith("/logs/")) {
+            return raw;
+          }
+          const justName = raw.split("/").pop();
+          return "/logs/" + justName;
+        }
+      }
+
+      // fallback: busca cualquier propiedad string que termine en .txt
+      for (const [k, v] of Object.entries(data)) {
+        if (typeof v === "string" && v.trim().toLowerCase().endsWith(".txt")) {
+          const raw = v.trim();
+          if (/^https?:\/\//.test(raw) || raw.startsWith("/logs/")) {
+            return raw;
+          }
+          const justName = raw.split("/").pop();
+          return "/logs/" + justName;
+        }
+      }
+
+      return null;
     }
 
     function renderSummary(data, httpOk) {
@@ -812,6 +863,18 @@
       }
 
       summaryKeyData.innerHTML = keyParts.join("<br>");
+
+      // Lógica para mostrar el botón de descarga del reporte TXT de esta ejecución
+      const reportUrl = computeReportUrlFromData(data);
+      if (reportUrl) {
+        downloadReportContainer.classList.remove("hidden");
+        downloadReportButton.onclick = () => {
+          window.open(reportUrl, "_blank");
+        };
+      } else {
+        downloadReportContainer.classList.add("hidden");
+        downloadReportButton.onclick = null;
+      }
     }
 
     function renderSteps(data) {

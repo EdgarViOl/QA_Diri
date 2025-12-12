@@ -1,0 +1,110 @@
+===== QA | Simulador de Pagos DIRI - EJECUCIÓN =====
+Fecha/hora servidor (ISO): 2025-12-12T19:48:12.171Z
+
+---- RESUMEN GENERAL ----
+STATUS FINAL: SIN_RESULTADOS
+MENSAJE: No se encontraron pagos para esa referencia en MercadoPago (v1/payments/search).
+
+---- CONTEXTO DE ENTRADA ----
+Folio de compra: webp_1765565551619
+Marca (brandNumber): 17
+DN: 5612457662
+Pasarela: mercadopago
+Tipo de operación: recarga
+
+---- LOG PASO A PASO ----
+- Recibí folioCompra = webp_1765565551619
+- Marca / brandNumber = 17
+- Pasarela seleccionada = mercadopago
+- Tipo de operación = recarga
+- DN utilizado = 5612457662
+- Llamando API detalle consumo DN (ANTES_DE_REPROCESO) webresources/consultaConsumo (POST)...
+- API detalle consumo DN (ANTES_DE_REPROCESO) respondió correctamente: HTTP 200.
+- Llamando API MercadoPago v1/payments/search (GET) con external_reference = folioCompra...
+- API MercadoPago v1/payments/search respondió correctamente.
+- La búsqueda no devolvió pagos para esa external_reference
+
+---- DETALLE CONSUMO DN - ANTES_DE_REPROCESO ----
+{
+  "codRespuesta": "OK",
+  "detalle": "SE PROCESO CON EXITO LA PETICION",
+  "perfilClienteApp": {
+    "lineas": [
+      {
+        "datoslinea": {
+          "dn": "5612457662",
+          "esprincipal": "1",
+          "fechacorte": "12-01-2026",
+          "offeridaltan": "1509944009",
+          "plancontratado": "MIFI 5GB",
+          "tipo": "prepago",
+          "codigoplanref": "b183f1",
+          "recargaVigente": "SI",
+          "fechasRecarga": {
+            "ultimarecarga": "2025-12-12 12:54:20",
+            "vigenciarecarga": "2026-01-12 12:00:00"
+          },
+          "nobanda28": "NO",
+          "categoria_plan": "NORMAL"
+        },
+        "subscriber": {
+          "msisdn": "5612457662",
+          "imsi": "334140217467280",
+          "iccid": "8952140063585004750",
+          "imei": "35983473657467",
+          "status": "Active",
+          "product": "Mifi",
+          "coordinates": ","
+        },
+        "sms": {
+          "disponible": 0,
+          "consumo": 0,
+          "total": 0,
+          "ilimitado": "NO"
+        },
+        "voz": {
+          "disponible": 0,
+          "consumo": 0,
+          "total": 0,
+          "ilimitado": "NO"
+        },
+        "datos": {
+          "disponible": 29.4,
+          "consumo": 0.6,
+          "total": 30,
+          "ilimitado": "NO"
+        },
+        "rs": {
+          "disponible": 18.1,
+          "consumo": 0,
+          "total": 18.1,
+          "ilimitado": "NO"
+        },
+        "throttlin": {
+          "disponible": 0,
+          "consumo": 0,
+          "total": 0,
+          "ilimitado": "NO"
+        }
+      }
+    ],
+    "fallaAltan": false
+  }
+}
+
+---- DETALLE CONSUMO DN - DESPUES_DE_REPROCESO ----
+null
+
+---- DIFERENCIAS DETALLE CONSUMO (ANTES vs DESPUES) ----
+Sin diferencias o no se pudo calcular diff.
+
+---- DETALLE MERCADOPAGO ----
+>>> Respuesta API MercadoPago v1/payments/search:
+{
+  "results": [],
+  "paging": {
+    "total": 0,
+    "offset": 0,
+    "limit": 0
+  }
+}
