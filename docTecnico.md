@@ -39,32 +39,27 @@ Este servidor Node.js/Express es una herramienta de QA que simula el reproceso c
 
 ### Stack Tecnológico
 
-```
-Node.js 14+ → Express 4.18+ → MySQL 2/Promise
-                ↓
-           Axios (HTTP client)
-                ↓
-           MongoDB Driver
+```mermaid
+flowchart LR
+  Node["Node.js 14+"] --> Express["Express 4.18+"]
+  Express --> Axios["Axios (HTTP client)"]
+  Axios --> MySQL["MySQL 2/Promise"]
+  Axios --> Mongo["MongoDB Driver"]
 ```
 
 ### Flujo de Datos
 
-```
-Browser (Frontend)
-    ↓
-[POST /run-flow] (endpoint principal)
-    ↓
-Validaciones básicas
-    ↓
-API Detalle Consumo (ANTES)
-    ↓
-┌─ Ruteo por pasarela ─┬─ MercadoPago
-│                      ├─ PayPal
-│                      └─ OpenPay
-│
-└─ SELECT PROD → INSERT UAT → API Procesamiento → Validaciones
-    ↓
-Respuesta JSON con logs y detalles
+```mermaid
+flowchart TD
+  Browser["Browser (Frontend)"] --> Run["POST /run-flow (endpoint principal)"]
+  Run --> Valid["Validaciones básicas"]
+  Valid --> ConsumoANTES["API Detalle Consumo (ANTES)"]
+  ConsumoANTES --> Route["Ruteo por pasarela"]
+  Route --> MP["MercadoPago"]
+  Route --> PP["PayPal"]
+  Route --> OP["OpenPay"]
+  Route --> DBFlow["SELECT PROD → INSERT UAT → API Procesamiento → Validaciones"]
+  DBFlow --> Response["Respuesta JSON con logs y detalles"]
 ```
 
 ---
@@ -93,22 +88,22 @@ Configura dos pools MySQL:
 
 #### Estructura de Directorios
 
-```
-server.js
-  ├─ Configuración global (APIs, BD, MongoDB)
-  ├─ app.post("/run-flow", ...)
-  │   ├─ Validaciones básicas
-  │   ├─ Logs de contexto
-  │   ├─ API detalle consumo ANTES
-  │   ├─ Flujo MercadoPago / PayPal / OpenPay
-  │   └─ API detalle consumo DESPUÉS + diff
-  │
-  └─ Funciones auxiliares
-      ├─ validarTablasNegocioUat()
-      ├─ validarEnMongoPorFolioCompra()
-      ├─ llamarApiDetalleConsumoDN()
-      ├─ computeJsonDiff()
-      └─ consultarConsumoDespuesYCalcularDiff()
+```mermaid
+flowchart TB
+   Server["server.js"]
+   Server --> Config["Configuración global (APIs, BD, MongoDB)"]
+   Server --> Endpoint["app.post('/run-flow', ...)"]
+   Endpoint --> Validaciones["Validaciones básicas"]
+   Endpoint --> Logs["Logs de contexto"]
+   Endpoint --> ConsumoANTES2["API detalle consumo ANTES"]
+   Endpoint --> Flujos["Flujo MercadoPago / PayPal / OpenPay"]
+   Endpoint --> ConsumoDESPUES2["API detalle consumo DESPUÉS + diff"]
+   Server --> Aux["Funciones auxiliares"]
+   Aux --> validar["validarTablasNegocioUat()"]
+   Aux --> validarMongo["validarEnMongoPorFolioCompra()"]
+   Aux --> llamar["llamarApiDetalleConsumoDN()"]
+   Aux --> diff["computeJsonDiff()"]
+   Aux --> consultar["consultarConsumoDespuesYCalcularDiff()"]
 ```
 
 ---
