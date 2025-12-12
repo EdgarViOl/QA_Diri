@@ -383,6 +383,18 @@
           </div>
 
           <div class="field-row">
+            <label for="dn">DN utilizado (10 dígitos):</label><br />
+            <input
+              type="text"
+              id="dn"
+              name="dn"
+              maxlength="10"
+              required
+              placeholder="Ej. 5512345678"
+            />
+          </div>
+
+          <div class="field-row">
             <label for="gateway">Pasarela de pago:</label><br />
             <select id="gateway" name="gateway">
               <option value="mercadopago">MercadoPago</option>
@@ -492,6 +504,13 @@
     const purchaseDateRow = document.getElementById("purchaseDateRow");
     const purchaseDateInput = document.getElementById("purchaseDate");
 
+    const folioCompraInput = document.getElementById("folioCompra");
+    const brandNumberInput = document.getElementById("brandNumber");
+    const dnInput = document.getElementById("dn");
+    const tipoOperacionRadios = document.querySelectorAll(
+      'input[name="tipoOperacion"]'
+    );
+
     gatewaySelect.addEventListener("change", () => {
       const gwValue = gatewaySelect.value;
       if (gwValue === "paypal") {
@@ -500,28 +519,101 @@
         purchaseDateRow.classList.add("hidden");
         purchaseDateInput.value = "";
       }
+      validarFormularioYBoton();
     });
+
+    function inferirTipoDesdeFolio(folio) {
+      if (!folio || typeof folio !== "string") return null;
+      const partes = folio.split("_");
+      if (!partes[0]) return null;
+      const prefijo = partes[0];
+      if (prefijo.length === 4) return "recarga";
+      if (prefijo.length === 3) return "compra";
+      return null;
+    }
+
+    function validarFormularioYBoton() {
+      const folio = folioCompraInput.value.trim();
+      const dn = dnInput.value.trim();
+      const gateway = gatewaySelect.value;
+      const purchaseDate = purchaseDateInput.value.trim();
+      const tipoSeleccionadoRadio = document.querySelector(
+        'input[name="tipoOperacion"]:checked'
+      );
+      const tipoSeleccionado = tipoSeleccionadoRadio
+        ? tipoSeleccionadoRadio.value
+        : null;
+
+      let valido = true;
+      let mensajeAdvertencia = "";
+
+      if (!folio) {
+        valido = false;
+      } else {
+        const tipoInferido = inferirTipoDesdeFolio(folio);
+        if (tipoInferido && tipoSeleccionado && tipoInferido !== tipoSeleccionado) {
+          valido = false;
+          mensajeAdvertencia =
+            'El folio parece corresponder a una "' +
+            tipoInferido +
+            '" pero está seleccionado "' +
+            tipoSeleccionado +
+            '".';
+        }
+      }
+
+      if (gateway === "paypal" && !purchaseDate) {
+        valido = false;
+      }
+
+      if (!dn || !/^[0-9]{10}$/.test(dn)) {
+        valido = false;
+        if (!mensajeAdvertencia) {
+          mensajeAdvertencia = "El DN debe ser numérico de exactamente 10 dígitos.";
+        }
+      }
+
+      if (mensajeAdvertencia) {
+        if (
+          statusChip.classList.contains("status-idle") ||
+          statusChip.classList.contains("status-warning")
+        ) {
+          summaryMessage.textContent = mensajeAdvertencia;
+        }
+      } else if (statusChip.classList.contains("status-idle")) {
+        summaryMessage.textContent =
+          "Ingresar folio de compra y ejecutar el flujo.";
+      }
+
+      runButton.disabled = !valido;
+    }
+
+    tipoOperacionRadios.forEach((radio) => {
+      radio.addEventListener("change", validarFormularioYBoton);
+    });
+
+    folioCompraInput.addEventListener("input", validarFormularioYBoton);
+    dnInput.addEventListener("input", validarFormularioYBoton);
+    purchaseDateInput.addEventListener("input", validarFormularioYBoton);
 
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
 
-      const folioCompraInput = document.getElementById("folioCompra");
-      const brandNumberInput = document.getElementById("brandNumber");
+      const folioCompra = folioCompraInput.value.trim();
+      const brandNumber = brandNumberInput.value.trim();
       const tipoOperacionRadio = document.querySelector(
         'input[name="tipoOperacion"]:checked'
       );
-
-      const folioCompra = folioCompraInput.value.trim();
-      const brandNumber = brandNumberInput.value.trim();
-      const gateway = gatewaySelect.value;
       const tipoOperacion = tipoOperacionRadio ? tipoOperacionRadio.value : null;
+      const gateway = gatewaySelect.value;
       const purchaseDate = purchaseDateInput ? purchaseDateInput.value.trim() : "";
+      const dn = dnInput.value.trim();
 
       if (!folioCompra) return;
+      if (!dn || !/^[0-9]{10}$/.test(dn)) return;
 
       setLoading(true);
       resetViewBeforeRun();
-
       setStatusRunning("Ejecutando flujo, esperando respuesta del backend...");
 
       const controller = new AbortController();
@@ -537,7 +629,8 @@
             brandNumber,
             gateway,
             tipoOperacion,
-            purchaseDate
+            purchaseDate,
+            dn
           }),
           signal: controller.signal
         });
@@ -578,9 +671,10 @@
     });
 
     clearButton.addEventListener("click", () => {
-      document.getElementById("folioCompra").value = "";
-      document.getElementById("brandNumber").value = "";
-      document.getElementById("gateway").value = "mercadopago";
+      folioCompraInput.value = "";
+      brandNumberInput.value = "";
+      dnInput.value = "";
+      gatewaySelect.value = "mercadopago";
       purchaseDateInput.value = "";
       purchaseDateRow.classList.add("hidden");
 
@@ -588,11 +682,16 @@
         'input[name="tipoOperacion"][value="recarga"]'
       );
       if (recargaRadio) recargaRadio.checked = true;
+
       resetFullView();
+      validarFormularioYBoton();
     });
 
     toggleDetailsButton.addEventListener("click", () => {
-      if (detailsContainer.style.display === "none" || detailsContainer.style.display === "") {
+      if (
+        detailsContainer.style.display === "none" ||
+        detailsContainer.style.display === ""
+      ) {
         detailsContainer.style.display = "block";
         toggleDetailsButton.textContent = "Ocultar detalles";
       } else {
@@ -602,8 +701,13 @@
     });
 
     function setLoading(isLoading) {
-      runButton.disabled = isLoading;
-      runButton.textContent = isLoading ? "Ejecutando..." : "Ejecutar flujo";
+      if (isLoading) {
+        runButton.disabled = true;
+        runButton.textContent = "Ejecutando...";
+      } else {
+        runButton.textContent = "Ejecutar flujo";
+        validarFormularioYBoton();
+      }
     }
 
     function setStatusRunning(texto) {
@@ -660,9 +764,11 @@
         status === "SIN_RESULTADOS" ||
         status === "SIN_REGISTRO_PROD" ||
         status === "SIN_REGISTRO_PROD_PAYPAL" ||
+        status === "SIN_REGISTRO_PROD_OPENPAY" ||
         status === "GATEWAY_NO_IMPLEMENTADO" ||
         status === "EXISTE_EN_UAT" ||
-        status === "EXISTE_EN_UAT_PAYPAL"
+        status === "EXISTE_EN_UAT_PAYPAL" ||
+        status === "EXISTE_EN_UAT_OPENPAY"
       ) {
         statusChip.classList.add("status-warning");
         textSpan.textContent = "Advertencia";
@@ -691,6 +797,9 @@
       }
       if (data.brandNumber) {
         keyParts.push("<strong>Marca:</strong> " + data.brandNumber);
+      }
+      if (data.dn) {
+        keyParts.push("<strong>DN:</strong> " + data.dn);
       }
       if (data.gateway) {
         keyParts.push("<strong>Pasarela:</strong> " + data.gateway);
@@ -730,7 +839,8 @@
           upper.includes("RESPONDIÓ CORRECTAMENTE") ||
           upper.includes("ENCONTRADO") ||
           upper.includes("OK") ||
-          upper.includes("VERIFICADO")
+          upper.includes("VERIFICADO") ||
+          upper.includes("CONSIDERADO EXITOSO")
         ) {
           cls = "step-ok";
         }
@@ -752,6 +862,7 @@
     }
 
     resetFullView();
+    validarFormularioYBoton();
   </script>
   <footer>
     <p style="text-align: center; font-size: 0.8rem; color: var(--text-muted);">
