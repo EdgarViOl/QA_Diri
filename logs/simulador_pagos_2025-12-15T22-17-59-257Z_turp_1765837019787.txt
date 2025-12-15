@@ -1,0 +1,359 @@
+===== QA | Simulador de Pagos DIRI - EJECUCIÓN =====
+Fecha/hora servidor (ISO): 2025-12-15T22:17:59.257Z
+
+---- RESUMEN GENERAL ----
+STATUS FINAL: OK
+MENSAJE: Flujo OpenPay ejecutado → Webhook PROD encontrado → Insertado en UAT → Metadata recuperada → JSON para webhookopenpay construido → Notificación reprocesada por API webhookopenpay → Validación en tablas de negocio UAT y en MongoDB.
+
+---- CONTEXTO DE ENTRADA ----
+Folio de compra: turp_1765837019787
+Marca (brandNumber): 5
+DN: 5654057265
+Pasarela: openpay
+Tipo de operación: recarga
+
+---- LOG PASO A PASO ----
+- Recibí folioCompra = turp_1765837019787
+- Marca / brandNumber = 5
+- Pasarela seleccionada = openpay
+- Tipo de operación = recarga
+- DN utilizado = 5654057265
+- Llamando API detalle consumo DN (ANTES_DE_REPROCESO) webresources/consultaConsumo (POST)...
+- API detalle consumo DN (ANTES_DE_REPROCESO) respondió correctamente: HTTP 200.
+- Iniciando flujo OpenPay: webhook PROD → UAT → construcción JSON → API webhookopenpay → validaciones.
+- Consultando BD PROD OpenPay (diri_webhook_openpay) por folio...
+- Registro OpenPay encontrado en PROD.
+- Verificando si ya existe registro OpenPay en UAT para ese folio...
+- No existía registro OpenPay en UAT; insertando registro en UAT...
+- Registro OpenPay insertado en UAT con id = 401169
+- Recuperando registro OpenPay desde UAT para obtener metadata después del insert...
+- Metadata obtenida desde registro OpenPay en UAT; se intenta parsear como JSON.
+- Metadata OpenPay en UAT parseada correctamente como JSON.
+- Campos relevantes extraídos de metadata OpenPay: creation_date, operation_date, order_id, reference, amount, email, phone_number.
+- JSON OpenPay para webhookopenpay construido con sustitución de los campos dinámicos indicados.
+- Llamando API webhookopenpay (POST) para reprocesar OpenPay...
+- API webhookopenpay respondió con status HTTP 200, codRespuesta = OK, detalle = SE PROCESO CON EXITO LA PETICION
+- API webhookopenpay procesó la notificación OpenPay con éxito (codRespuesta OK).
+- Validando en tabla de negocio UAT: diriprod.diri_recarga (recarga, estatus OK/PAGADO)...
+- Error de negocio: recarga encontrada pero con estatus no exitoso (PENDIENTE).
+- Validando folioCompra en MongoDB ECOMMERCEDB.tbl_orders por patrón en _id...
+- Orden encontrada en MongoDB para ese folioCompra.
+- Estado en MongoDB considerado exitoso (PAID) para ese folio.
+- Llamando API detalle consumo DN (DESPUES_DE_REPROCESO) webresources/consultaConsumo (POST)...
+- API detalle consumo DN (DESPUES_DE_REPROCESO) respondió correctamente: HTTP 200.
+- API detalle consumo DN (DESPUES_DE_REPROCESO) respondió igual que ANTES_DE_REPROCESO (sin diferencias detectadas).
+
+---- DETALLE CONSUMO DN - ANTES_DE_REPROCESO ----
+{
+  "codRespuesta": "OK",
+  "detalle": "SE PROCESO CON EXITO LA PETICION",
+  "perfilClienteApp": {
+    "lineas": [
+      {
+        "datoslinea": {
+          "dn": "5654057265",
+          "esprincipal": "1",
+          "fechacorte": "",
+          "offeridaltan": "1779944050",
+          "plancontratado": "Turbo 15 Días",
+          "tipo": "prepago",
+          "codigoplanref": "e2b0a8",
+          "recargaVigente": "NA",
+          "fechasRecarga": {
+            "ultimarecarga": "2025-07-16 15:08:39",
+            "vigenciarecarga": "2025-08-15 15:08:39"
+          },
+          "nobanda28": "NO",
+          "tipoIcc": "FISICA",
+          "categoria_plan": "NORMAL"
+        },
+        "subscriber": {
+          "msisdn": "5654057265",
+          "imsi": "334140174495680",
+          "iccid": "8952140062457088107",
+          "imei": "35484182111284",
+          "status": "Predeactive",
+          "product": "Movilidad",
+          "coordinates": ","
+        },
+        "sms": {
+          "disponible": 0,
+          "consumo": 0,
+          "total": 0,
+          "ilimitado": "NO"
+        },
+        "voz": {
+          "disponible": 0,
+          "consumo": 0,
+          "total": 0,
+          "ilimitado": "NO"
+        },
+        "datos": {
+          "disponible": 0,
+          "consumo": 0,
+          "total": 0,
+          "ilimitado": "NO"
+        },
+        "rs": {
+          "disponible": 0,
+          "consumo": 0,
+          "total": 0,
+          "ilimitado": "NO"
+        },
+        "throttlin": {
+          "disponible": 0,
+          "consumo": 0,
+          "total": 0,
+          "ilimitado": "NO"
+        }
+      }
+    ],
+    "fallaAltan": false
+  }
+}
+
+---- DETALLE CONSUMO DN - DESPUES_DE_REPROCESO ----
+{
+  "codRespuesta": "OK",
+  "detalle": "SE PROCESO CON EXITO LA PETICION",
+  "perfilClienteApp": {
+    "lineas": [
+      {
+        "datoslinea": {
+          "dn": "5654057265",
+          "esprincipal": "1",
+          "fechacorte": "",
+          "offeridaltan": "1779944050",
+          "plancontratado": "Turbo 15 Días",
+          "tipo": "prepago",
+          "codigoplanref": "e2b0a8",
+          "recargaVigente": "NA",
+          "fechasRecarga": {
+            "ultimarecarga": "2025-07-16 15:08:39",
+            "vigenciarecarga": "2025-08-15 15:08:39"
+          },
+          "nobanda28": "NO",
+          "tipoIcc": "FISICA",
+          "categoria_plan": "NORMAL"
+        },
+        "subscriber": {
+          "msisdn": "5654057265",
+          "imsi": "334140174495680",
+          "iccid": "8952140062457088107",
+          "imei": "35484182111284",
+          "status": "Predeactive",
+          "product": "Movilidad",
+          "coordinates": ","
+        },
+        "sms": {
+          "disponible": 0,
+          "consumo": 0,
+          "total": 0,
+          "ilimitado": "NO"
+        },
+        "voz": {
+          "disponible": 0,
+          "consumo": 0,
+          "total": 0,
+          "ilimitado": "NO"
+        },
+        "datos": {
+          "disponible": 0,
+          "consumo": 0,
+          "total": 0,
+          "ilimitado": "NO"
+        },
+        "rs": {
+          "disponible": 0,
+          "consumo": 0,
+          "total": 0,
+          "ilimitado": "NO"
+        },
+        "throttlin": {
+          "disponible": 0,
+          "consumo": 0,
+          "total": 0,
+          "ilimitado": "NO"
+        }
+      }
+    ],
+    "fallaAltan": false
+  }
+}
+
+---- DIFERENCIAS DETALLE CONSUMO (ANTES vs DESPUES) ----
+Sin diferencias o no se pudo calcular diff.
+
+---- DETALLE OPENPAY ----
+>>> Registro PROD (diri_webhook_openpay):
+{
+  "id": 401169,
+  "folio": "turp_1765837019787",
+  "referencia": "1010100193592687",
+  "orderid": "trw99favww3nfdeotfbo",
+  "autorizacion": "NA",
+  "tipo": "charge.created",
+  "metadata": "{\"type\":\"charge.created\",\"event_date\":\"2025-12-15T16:17:00-06:00\",\"transaction\":{\"id\":\"trw99favww3nfdeotfbo\",\"authorization\":null,\"operation_type\":\"in\",\"transaction_type\":\"charge\",\"status\":\"in_progress\",\"conciliated\":false,\"creation_date\":\"2025-12-15T16:16:59-06:00\",\"operation_date\":\"2025-12-15T16:16:59-06:00\",\"description\":\"1809905407\",\"error_message\":null,\"order_id\":\"turp_1765837019787\",\"amount\":199.00,\"customer\":{\"name\":\"Recarga Turbocel\",\"last_name\":\"TURBOCEL-tienda\",\"email\":\"evillegas@diri.mx\",\"phone_number\":\"5654057265\",\"address\":null,\"creation_date\":\"2025-12-15T16:16:59-06:00\",\"external_id\":null,\"clabe\":null},\"payment_method\":{\"type\":\"store\",\"reference\":\"1010100193592687\",\"barcode_url\":\"https://api.openpay.mx/barcode/1010100193592687?width=1&height=45&text=false\",\"url_store\":\"https://api.openpay.mx/v1/my0gsbrcogzx1ifrsso6/customers/736760838/trw99favww3nfdeotfbo/store_confirm\"},\"currency\":\"MXN\",\"method\":\"store\"}}",
+  "codigo_verificacion": "NA",
+  "fecha_registro": "2025-12-15T22:17:03.000Z"
+}
+>>> Resultado insert en UAT (OpenPay):
+{
+  "insertId": 401169,
+  "affectedRows": 1
+}
+>>> Metadata Raw OpenPay:
+"{\"type\":\"charge.created\",\"event_date\":\"2025-12-15T16:17:00-06:00\",\"transaction\":{\"id\":\"trw99favww3nfdeotfbo\",\"authorization\":null,\"operation_type\":\"in\",\"transaction_type\":\"charge\",\"status\":\"in_progress\",\"conciliated\":false,\"creation_date\":\"2025-12-15T16:16:59-06:00\",\"operation_date\":\"2025-12-15T16:16:59-06:00\",\"description\":\"1809905407\",\"error_message\":null,\"order_id\":\"turp_1765837019787\",\"amount\":199.00,\"customer\":{\"name\":\"Recarga Turbocel\",\"last_name\":\"TURBOCEL-tienda\",\"email\":\"evillegas@diri.mx\",\"phone_number\":\"5654057265\",\"address\":null,\"creation_date\":\"2025-12-15T16:16:59-06:00\",\"external_id\":null,\"clabe\":null},\"payment_method\":{\"type\":\"store\",\"reference\":\"1010100193592687\",\"barcode_url\":\"https://api.openpay.mx/barcode/1010100193592687?width=1&height=45&text=false\",\"url_store\":\"https://api.openpay.mx/v1/my0gsbrcogzx1ifrsso6/customers/736760838/trw99favww3nfdeotfbo/store_confirm\"},\"currency\":\"MXN\",\"method\":\"store\"}}"
+>>> Metadata Parseada OpenPay:
+{
+  "type": "charge.created",
+  "event_date": "2025-12-15T16:17:00-06:00",
+  "transaction": {
+    "id": "trw99favww3nfdeotfbo",
+    "authorization": null,
+    "operation_type": "in",
+    "transaction_type": "charge",
+    "status": "in_progress",
+    "conciliated": false,
+    "creation_date": "2025-12-15T16:16:59-06:00",
+    "operation_date": "2025-12-15T16:16:59-06:00",
+    "description": "1809905407",
+    "error_message": null,
+    "order_id": "turp_1765837019787",
+    "amount": 199,
+    "customer": {
+      "name": "Recarga Turbocel",
+      "last_name": "TURBOCEL-tienda",
+      "email": "evillegas@diri.mx",
+      "phone_number": "5654057265",
+      "address": null,
+      "creation_date": "2025-12-15T16:16:59-06:00",
+      "external_id": null,
+      "clabe": null
+    },
+    "payment_method": {
+      "type": "store",
+      "reference": "1010100193592687",
+      "barcode_url": "https://api.openpay.mx/barcode/1010100193592687?width=1&height=45&text=false",
+      "url_store": "https://api.openpay.mx/v1/my0gsbrcogzx1ifrsso6/customers/736760838/trw99favww3nfdeotfbo/store_confirm"
+    },
+    "currency": "MXN",
+    "method": "store"
+  }
+}
+>>> Body enviado a API webhookopenpay:
+{
+  "type": "charge.succeeded",
+  "event_date": "2025-12-10T16:02:31-06:00",
+  "transaction": {
+    "id": "trqvchpibshq708tglsm",
+    "authorization": "087811",
+    "operation_type": "in",
+    "transaction_type": "charge",
+    "status": "completed",
+    "conciliated": false,
+    "creation_date": "2025-12-15T16:16:59-06:00",
+    "operation_date": "2025-12-15T16:16:59-06:00",
+    "description": null,
+    "error_message": null,
+    "order_id": "turp_1765837019787",
+    "amount": 199,
+    "currency": "MXN",
+    "payment_method": {
+      "type": "store",
+      "reference": "1010100193592687",
+      "barcode_url": "https://api.openpay.mx/barcode/1010101344144225?width=1&height=45&text=false",
+      "url_store": "https://api.openpay.mx/v1/ml8cfrcrzalre5r4eqeb/customers/734709707/trqvchpibshq708tglsm/store_confirm"
+    },
+    "customer": {
+      "name": "Edgar",
+      "last_name": "DIRI-equipo",
+      "email": "evillegas@diri.mx",
+      "phone_number": "5654057265",
+      "address": {
+        "line1": "NA",
+        "line2": "NA",
+        "line3": "NA",
+        "state": "NA",
+        "city": "NA",
+        "postal_code": "NA",
+        "country_code": "NA"
+      },
+      "creation_date": "2025-12-15T16:16:59-06:00",
+      "external_id": null,
+      "clabe": null
+    },
+    "fee": {
+      "amount": 9.14,
+      "tax": 1.4624,
+      "surcharge": null,
+      "base_commission": null,
+      "currency": "MXN"
+    },
+    "method": "store"
+  }
+}
+>>> Respuesta API webhookopenpay:
+{
+  "codRespuesta": "OK",
+  "detalle": "SE PROCESO CON EXITO LA PETICION"
+}
+
+---- MONGODB ECOMMERCEDB.tbl_orders ----
+Orden encontrada: Sí
+{
+  "_id": "turp_1765837019787",
+  "customer": {
+    "name": "Recarga Turbocel",
+    "surname_first": "Recarga Turbocel",
+    "surname_second": "Recarga Turbocel",
+    "email": "evillegas@diri.mx",
+    "phone": "5654057265",
+    "birth_date": "",
+    "nacionality": "",
+    "gender": "",
+    "identifier_type": "",
+    "identifier_number": "",
+    "phone_cell": "5654057265",
+    "phone_home": "5654057265",
+    "phone_bussines": "5654057265"
+  },
+  "shipping_address": {
+    "street": "RECARGA - TURBOCEL",
+    "num_ext": "RECARGA - TURBOCEL",
+    "num_int": "RECARGA - TURBOCEL",
+    "postal_code": "00000",
+    "neighborhood": "RECARGA - TURBOCEL",
+    "crosstreet": "RECARGA - TURBOCEL",
+    "reference": "1809905407"
+  },
+  "products": [
+    {
+      "name": "Plan",
+      "referencia": "TURBO-RM-CT-CS-43200-1500-750MI-9830-2458M-3000-500SMS-102400-3000RS-720H",
+      "phone_number": "5654057265",
+      "portable": false,
+      "portability_nip": "",
+      "import": 199,
+      "locked_hours": 72,
+      "payment_form": "OPENPAY",
+      "quotas_number": 1
+    }
+  ],
+  "created_date": "1765837020237",
+  "status": "PAID",
+  "expiration_date": "2025-12-15 22:17:00",
+  "ip": "187.189.170.14",
+  "link": "https://confirma.diri.mx/order?folio=turp_1765837019787",
+  "imei": "NA",
+  "notify": "mail",
+  "channel": "web",
+  "oxxo_reference": "1010100193592687",
+  "oxxo_barcode": "https://api.openpay.mx/barcode/1010100193592687?width=1&height=45&text=false",
+  "oxxo_barcode_url": "https://api.openpay.mx/barcode/1010100193592687?width=1&height=45&text=false",
+  "processed": false,
+  "fulfilled": false,
+  "delivered": false,
+  "process_date": "",
+  "_class": "com.diri.orders.model.Order"
+}

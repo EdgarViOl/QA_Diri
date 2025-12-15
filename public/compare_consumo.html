@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>QA | Comparador JSON consultaConsumo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --bg-body: #f3f4f6;
+      --bg-card: #ffffff;
+      --border-soft: #e5e7eb;
+      --primary: #2563eb;
+      --primary-dark: #1d4ed8;
+      --ok: #16a34a;
+      --error: #dc2626;
+      --warn: #f59e0b;
+      --text-main: #111827;
+      --text-muted: #6b7280;
+      --code-bg: #111827;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 16px;
+      background: var(--bg-body);
+      color: var(--text-main);
+    }
+
+    .wrapper {
+      max-width: 960px;
+      margin: 0 auto;
+    }
+
+    .header-card {
+      background: linear-gradient(135deg, #0f172a, #1e293b);
+      color: #f9fafb;
+      border-radius: 12px 12px 0 0;
+      padding: 20px 20px 16px;
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.35);
+    }
+
+    .header-title {
+      font-size: 1.4rem;
+      margin: 0 0 4px;
+      font-weight: 600;
+      text-align: left;
+    }
+
+    .header-subtitle {
+      font-size: 0.9rem;
+      margin: 0;
+      color: #cbd5f5;
+      text-align: left;
+    }
+
+    .header-links {
+      margin-top: 8px;
+      text-align: center;
+      font-size: 0.8rem;
+    }
+
+    .header-links a {
+      color: #93c5fd;
+      text-decoration: underline;
+    }
+
+    .main-card {
+      background: var(--bg-card);
+      border-radius: 0 0 12px 12px;
+      padding: 16px 20px 20px;
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.15);
+      border: 1px solid rgba(148, 163, 184, 0.4);
+      border-top: none;
+      margin-bottom: 16px;
+    }
+
+    .section {
+      border-bottom: 1px solid var(--border-soft);
+      padding-bottom: 12px;
+      margin-bottom: 12px;
+    }
+
+    .section:last-child {
+      border-bottom: none;
+      margin-bottom: 0;
+      padding-bottom: 0;
+    }
+
+    .section-title {
+      font-size: 0.95rem;
+      font-weight: 600;
+      margin: 0 0 8px;
+      color: var(--text-main);
+    }
+
+    label {
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: var(--text-main);
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 220px;
+      padding: 8px 10px;
+      margin-top: 4px;
+      border-radius: 8px;
+      border: 1px solid #d1d5db;
+      font-size: 0.85rem;
+      font-family: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      resize: vertical;
+      background: #0b1120;
+      color: #e5e7eb;
+    }
+
+    textarea:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.25);
+    }
+
+    .field-row {
+      margin-bottom: 10px;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .buttons-row {
+      margin-top: 12px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    button {
+      padding: 8px 14px;
+      border-radius: 999px;
+      border: none;
+      cursor: pointer;
+      font-weight: 500;
+      font-size: 0.9rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    button.primary {
+      background: var(--primary);
+      color: #ffffff;
+    }
+
+    button.primary:hover:not(:disabled) {
+      background: var(--primary-dark);
+    }
+
+    button.secondary {
+      background: #e5e7eb;
+      color: #111827;
+    }
+
+    button.secondary:hover:not(:disabled) {
+      background: #d1d5db;
+    }
+
+    button:disabled {
+      opacity: 0.7;
+      cursor: not-allowed;
+    }
+
+    .status-bar {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .status-ok {
+      background: #ecfdf3;
+      color: var(--ok);
+    }
+
+    .status-error {
+      background: #fef2f2;
+      color: var(--error);
+    }
+
+    .status-warning {
+      background: #fffbeb;
+      color: var(--warn);
+    }
+
+    .status-idle {
+      background: #eff6ff;
+      color: #1d4ed8;
+    }
+
+    .status-running {
+      background: #e0f2fe;
+      color: #0369a1;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #9ca3af;
+    }
+
+    .status-ok .status-dot {
+      background: var(--ok);
+    }
+
+    .status-error .status-dot {
+      background: var(--error);
+    }
+
+    .status-warning .status-dot {
+      background: var(--warn);
+    }
+
+    .status-idle .status-dot {
+      background: #3b82f6;
+    }
+
+    .status-running .status-dot {
+      background: #0284c7;
+    }
+
+    .summary-message {
+      font-size: 0.9rem;
+      margin-bottom: 4px;
+    }
+
+    .summary-keydata {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+
+    .summary-keydata strong {
+      color: var(--text-main);
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .diff-table-wrapper {
+      max-height: 420px;
+      overflow: auto;
+      border-radius: 8px;
+      border: 1px solid var(--border-soft);
+      background: #020617;
+    }
+
+    table.diff-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+      color: #e5e7eb;
+    }
+
+    table.diff-table thead {
+      position: sticky;
+      top: 0;
+      background: #020617;
+      z-index: 1;
+    }
+
+    table.diff-table th,
+    table.diff-table td {
+      border-bottom: 1px solid #1f2937;
+      padding: 6px 8px;
+      vertical-align: top;
+    }
+
+    table.diff-table th {
+      text-align: left;
+      font-weight: 600;
+      color: #9ca3af;
+      font-size: 0.78rem;
+    }
+
+    table.diff-table td.path-cell {
+      white-space: nowrap;
+      max-width: 260px;
+      text-overflow: ellipsis;
+      overflow: hidden;
+      color: #bfdbfe;
+      font-family: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+
+    table.diff-table td.value-cell {
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+
+    .badge-count {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: #eff6ff;
+      color: #1d4ed8;
+      font-size: 0.75rem;
+      font-weight: 600;
+      margin-left: 6px;
+    }
+
+    @media (max-width: 800px) {
+      .grid-2 {
+        grid-template-columns: 1fr;
+      }
+
+      .header-card, .main-card {
+        padding: 14px 14px 12px;
+      }
+
+      .header-title {
+        font-size: 1.15rem;
+      }
+
+      .header-subtitle {
+        font-size: 0.8rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="header-card">
+      <a href="https:%2F%2Fwww.diri.mx/" title="" target="_blank">
+        <img src="https://pinpointemailimagenes.s3.amazonaws.com/DIRI_EMAILS/renov_anual/diri_blanco.png"
+             alt="Logo diri blanco"
+             width="100"
+             style="display:block;border:0;width:20%;height:auto;margin:0 auto" />
+      </a>
+      <div class="header-title">QA | Comparador JSON consultaConsumo</div>
+      <p class="header-subtitle">
+        Herramienta auxiliar para comparar manualmente la respuesta ANTES y DESPUÉS de consultaConsumo.
+      </p>
+      <div class="header-links">
+        <span>
+          Volver al simulador de pagos principal:
+          <a href="/index.html">aqui</a>
+        </span>
+      </div>
+    </div>
+
+    <div class="main-card">
+      <!-- Sección: Entrada de JSON -->
+      <div class="section">
+        <div class="section-title">Entrada de respuestas consultaConsumo</div>
+        <form id="compareForm">
+          <div class="grid-2">
+            <div class="field-row">
+              <label for="jsonBefore">JSON ANTES (consultaConsumo):</label>
+              <textarea id="jsonBefore" name="jsonBefore"
+                placeholder='Pegar aquí la respuesta JSON tal como la devuelve /webresources/consultaConsumo antes del reproceso'></textarea>
+            </div>
+            <div class="field-row">
+              <label for="jsonAfter">JSON DESPUÉS (consultaConsumo):</label>
+              <textarea id="jsonAfter" name="jsonAfter"
+                placeholder='Pegar aquí la respuesta JSON tal como la devuelve /webresources/consultaConsumo después del reproceso'></textarea>
+            </div>
+          </div>
+
+          <div class="buttons-row">
+            <button type="submit" class="primary" id="compareButton">
+              Comparar JSON
+            </button>
+            <button type="button" class="secondary" id="clearButton">
+              Limpiar
+            </button>
+          </div>
+        </form>
+        <p style="font-size:0.78rem;color:var(--text-muted);margin-top:6px;">
+          Nota: se espera un JSON completo en cada lado. La comparación es estructural, recursiva y distingue arrays, objetos y valores primitivos.
+        </p>
+      </div>
+
+      <!-- Sección: Resumen / Estado -->
+      <div class="section" id="summarySection">
+        <div id="statusChip" class="status-bar status-idle">
+          <span class="status-dot"></span>
+          <span>Listo para comparar</span>
+        </div>
+
+        <div class="summary-message" id="summaryMessage">
+          Pegar los dos JSON de consultaConsumo y presionar "Comparar JSON".
+        </div>
+        <div class="summary-keydata" id="summaryKeyData"></div>
+      </div>
+
+      <!-- Sección: Diferencias -->
+      <div class="section hidden" id="diffSection">
+        <div class="section-title">
+          Diferencias detectadas
+          <span class="badge-count" id="diffCountBadge">0</span>
+        </div>
+        <div class="diff-table-wrapper" id="diffTableWrapper">
+          <table class="diff-table" id="diffTable">
+            <thead>
+              <tr>
+                <th style="width:28%;">Campo (path completo en tooltip)</th>
+                <th style="width:36%;">Antes</th>
+                <th style="width:36%;">Después</th>
+              </tr>
+            </thead>
+            <tbody id="diffTableBody">
+              <!-- Filas generadas dinámicamente -->
+            </tbody>
+          </table>
+        </div>
+        <p id="noDiffsMessage" class="hidden" style="font-size:0.85rem;color:var(--text-muted);margin-top:6px;">
+          No se detectaron diferencias entre los dos JSON.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Referencias a elementos del DOM
+    const compareForm = document.getElementById("compareForm");
+    const compareButton = document.getElementById("compareButton");
+    const clearButton = document.getElementById("clearButton");
+
+    const jsonBeforeTextArea = document.getElementById("jsonBefore");
+    const jsonAfterTextArea = document.getElementById("jsonAfter");
+
+    const statusChip = document.getElementById("statusChip");
+    const summaryMessage = document.getElementById("summaryMessage");
+    const summaryKeyData = document.getElementById("summaryKeyData");
+
+    const diffSection = document.getElementById("diffSection");
+    const diffCountBadge = document.getElementById("diffCountBadge");
+    const diffTableBody = document.getElementById("diffTableBody");
+    const noDiffsMessage = document.getElementById("noDiffsMessage");
+
+    /**
+     * Esta función establece el estado visual del chip.
+     * @param {"idle"|"running"|"ok"|"error"|"warning"} state
+     * @param {string} text Texto a mostrar en el chip
+     */
+    function setStatus(state, text) {
+      statusChip.className = "status-bar";
+      const chipChildren = statusChip.querySelectorAll("span");
+      const textSpan = chipChildren[1];
+
+      if (state === "ok") {
+        statusChip.classList.add("status-ok");
+      } else if (state === "error") {
+        statusChip.classList.add("status-error");
+      } else if (state === "warning") {
+        statusChip.classList.add("status-warning");
+      } else if (state === "running") {
+        statusChip.classList.add("status-running");
+      } else {
+        statusChip.classList.add("status-idle");
+      }
+
+      textSpan.textContent = text;
+    }
+
+    /**
+     * Esta función limpia completamente la sección de diferencias.
+     */
+    function resetDiffView() {
+      diffSection.classList.add("hidden");
+      diffTableBody.innerHTML = "";
+      diffCountBadge.textContent = "0";
+      noDiffsMessage.classList.add("hidden");
+    }
+
+    /**
+     * Esta función reinicia el resumen a estado inicial.
+     */
+    function resetSummary() {
+      setStatus("idle", "Listo para comparar");
+      summaryMessage.textContent =
+        "Pegar los dos JSON de consultaConsumo y presionar \"Comparar JSON\".";
+      summaryKeyData.innerHTML = "";
+    }
+
+    /**
+     * Esta función intenta parsear un JSON y lanza un error con mensaje claro si falla.
+     * @param {string} raw Texto sin procesar del textarea
+     * @param {"ANTES"|"DESPUÉS"} etiqueta Campo que se está parseando
+     * @returns {any}
+     */
+    function parseJsonOrThrow(raw, etiqueta) {
+      const trimmed = raw.trim();
+      if (!trimmed) {
+        throw new Error("El JSON " + etiqueta + " está vacío.");
+      }
+
+      try {
+        return JSON.parse(trimmed);
+      } catch (e) {
+        throw new Error(
+          "El JSON " + etiqueta + " no es válido. Detalle: " + e.message
+        );
+      }
+    }
+
+    /**
+     * Determina el tipo de un valor.
+     * @param {*} value
+     * @returns {string} Tipo: "array", "null", "object", etc.
+     */
+    function tipo(value) {
+      if (Array.isArray(value)) return "array";
+      if (value === null) return "null";
+      return typeof value;
+    }
+
+    /**
+     * Implementación de computeJsonDiff equivalente a la del backend.
+     * Recorre recursivamente dos estructuras y detecta diferencias.
+     * @param {*} before
+     * @param {*} after
+     * @returns {Array<{path:string, antes:any, despues:any}>}
+     */
+    function computeJsonDiff(before, after) {
+      const diffs = [];
+
+      function walk(a, b, path) {
+        const tipoA = tipo(a);
+        const tipoB = tipo(b);
+
+        // Si el tipo es distinto, se considera diferencia directa.
+        if (tipoA !== tipoB) {
+          if (!(a === undefined && b === undefined)) {
+            diffs.push({ path, antes: a, despues: b });
+          }
+          return;
+        }
+
+        // Objetos
+        if (tipoA === "object") {
+          const keys = new Set([
+            ...Object.keys(a || {}),
+            ...Object.keys(b || {})
+          ]);
+          for (const key of keys) {
+            const newPath = path ? path + "." + key : key;
+            const hasA = a && Object.prototype.hasOwnProperty.call(a, key);
+            const hasB = b && Object.prototype.hasOwnProperty.call(b, key);
+
+            if (!hasA && hasB) {
+              diffs.push({ path: newPath, antes: undefined, despues: b[key] });
+            } else if (hasA && !hasB) {
+              diffs.push({ path: newPath, antes: a[key], despues: undefined });
+            } else {
+              walk(a[key], b[key], newPath);
+            }
+          }
+          return;
+        }
+
+        // Arrays
+        if (tipoA === "array") {
+          const maxLen = Math.max(a.length, b.length);
+          for (let i = 0; i < maxLen; i++) {
+            const newPath = path + "[" + i + "]";
+            if (i >= a.length) {
+              diffs.push({ path: newPath, antes: undefined, despues: b[i] });
+            } else if (i >= b.length) {
+              diffs.push({ path: newPath, antes: a[i], despues: undefined });
+            } else {
+              walk(a[i], b[i], newPath);
+            }
+          }
+          return;
+        }
+
+        // Primitivos y null
+        if (a !== b) {
+          diffs.push({ path, antes: a, despues: b });
+        }
+      }
+
+      walk(before, after, "");
+      return diffs;
+    }
+
+    /**
+     * Devuelve un label corto para mostrar en la columna "Campo":
+     * - Usa el último segmento del path, para que se vea el nombre del campo.
+     *   Ej: "perfilClienteApp.lineas[0].datoslinea.fechasRecarga.ultimarecarga" -> "ultimarecarga"
+     *   Ej: "perfilClienteApp.lineas[0]" -> "lineas[0]"
+     * @param {string} path
+     * @returns {string}
+     */
+    function getFieldLabelFromPath(path) {
+      if (!path) return "(raíz)";
+      const parts = path.split(".");
+      const last = parts[parts.length - 1];
+      return last || path;
+    }
+
+    /**
+     * Serializa un valor de forma legible para la tabla.
+     * @param {*} value
+     * @returns {string}
+     */
+    function safeStringifyValue(value) {
+      if (value === undefined) return "[undefined]";
+      if (value === null) return "null";
+      if (typeof value === "string") return value;
+      try {
+        return JSON.stringify(value, null, 2);
+      } catch (e) {
+        return "[No serializable]";
+      }
+    }
+
+    /**
+     * Renderiza la lista de diferencias en la tabla.
+     * @param {Array<{path:string, antes:any, despues:any}>} diffs
+     */
+    function renderDiffs(diffs) {
+      resetDiffView();
+
+      if (!diffs || diffs.length === 0) {
+        diffSection.classList.remove("hidden");
+        noDiffsMessage.classList.remove("hidden");
+        diffCountBadge.textContent = "0";
+        return;
+      }
+
+      diffSection.classList.remove("hidden");
+      noDiffsMessage.classList.add("hidden");
+      diffCountBadge.textContent = String(diffs.length);
+
+      diffs.forEach((diff) => {
+        const tr = document.createElement("tr");
+
+        const fullPath = diff.path || "";
+        const label = getFieldLabelFromPath(fullPath);
+
+        const tdPath = document.createElement("td");
+        tdPath.className = "path-cell";
+        tdPath.textContent = label;
+        tdPath.title = fullPath || "(raíz)"; // tooltip con el path completo
+
+        const tdAntes = document.createElement("td");
+        tdAntes.className = "value-cell";
+        tdAntes.textContent = safeStringifyValue(diff.antes);
+
+        const tdDespues = document.createElement("td");
+        tdDespues.className = "value-cell";
+        tdDespues.textContent = safeStringifyValue(diff.despues);
+
+        tr.appendChild(tdPath);
+        tr.appendChild(tdAntes);
+        tr.appendChild(tdDespues);
+
+        diffTableBody.appendChild(tr);
+      });
+    }
+
+    // Manejo del formulario de comparación
+    compareForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+
+      resetDiffView();
+      setStatus("running", "Comparando JSON...");
+      summaryMessage.textContent = "Ejecutando comparación estructural entre ambos JSON.";
+      summaryKeyData.innerHTML = "";
+
+      try {
+        const rawBefore = jsonBeforeTextArea.value;
+        const rawAfter = jsonAfterTextArea.value;
+
+        const before = parseJsonOrThrow(rawBefore, "ANTES");
+        const after = parseJsonOrThrow(rawAfter, "DESPUÉS");
+
+        const diffs = computeJsonDiff(before, after);
+
+        renderDiffs(diffs);
+
+        if (!diffs || diffs.length === 0) {
+          setStatus("ok", "Sin diferencias detectadas");
+          summaryMessage.textContent = "Los dos JSON son equivalentes según la comparación estructural.";
+          summaryKeyData.innerHTML =
+            "<strong>Diferencias:</strong> 0<br>" +
+            "<strong>Observación:</strong> No se detectaron cambios en campos ni valores.";
+        } else {
+          setStatus("ok", "Diferencias detectadas");
+          summaryMessage.textContent =
+            "La comparación encontró " + diffs.length + " diferencia(s) entre los JSON.";
+          summaryKeyData.innerHTML =
+            "<strong>Diferencias totales:</strong> " + diffs.length +
+            "<br><strong>Descripción:</strong> Se listan los campos con cambios de valor, campos nuevos y campos eliminados.";
+        }
+      } catch (error) {
+        setStatus("error", "Error en datos de entrada");
+        summaryMessage.textContent = error.message;
+        summaryKeyData.innerHTML =
+          "<strong>Detalle:</strong> Verificar que ambos campos contengan JSON válido y bien formado.";
+        resetDiffView();
+      }
+    });
+
+    // Botón limpiar
+    clearButton.addEventListener("click", () => {
+      jsonBeforeTextArea.value = "";
+      jsonAfterTextArea.value = "";
+      resetSummary();
+      resetDiffView();
+    });
+
+    // Estado inicial
+    resetSummary();
+    resetDiffView();
+  </script>
+
+  <footer>
+    <p style="text-align: center; font-size: 0.8rem; color: var(--text-muted);">
+      &copy; 2025 Villegas Olvera Edgar.
+    </p>
+  </footer>
+</body>
+</html>

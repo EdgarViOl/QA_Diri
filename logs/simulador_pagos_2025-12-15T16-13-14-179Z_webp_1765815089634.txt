@@ -1,0 +1,323 @@
+===== QA | Simulador de Pagos DIRI - EJECUCIÓN =====
+Fecha/hora servidor (ISO): 2025-12-15T16:13:14.179Z
+
+---- RESUMEN GENERAL ----
+STATUS FINAL: OK
+MENSAJE: Flujo MercadoPago ejecutado → Folio Mercado obtenido → Registro encontrado en PROD → Insertado en UAT → Estatus actualizado a 'PENDIENTE' → Metadata de UAT preparada → Notificación procesada por API procesanotificacionmercadopago → Validación en tablas de negocio UAT y en MongoDB.
+
+---- CONTEXTO DE ENTRADA ----
+Folio de compra: webp_1765815089634
+Marca (brandNumber): 17
+DN: 5612457662
+Pasarela: mercadopago
+Tipo de operación: recarga
+Folio MercadoPago: 137359297433
+
+---- LOG PASO A PASO ----
+- Recibí folioCompra = webp_1765815089634
+- Marca / brandNumber = 17
+- Pasarela seleccionada = mercadopago
+- Tipo de operación = recarga
+- DN utilizado = 5612457662
+- Llamando API detalle consumo DN (ANTES_DE_REPROCESO) webresources/consultaConsumo (POST)...
+- API detalle consumo DN (ANTES_DE_REPROCESO) respondió correctamente: HTTP 200.
+- Llamando API MercadoPago v1/payments/search (GET) con external_reference = folioCompra...
+- API MercadoPago v1/payments/search respondió correctamente.
+- Folio de MercadoPago obtenido del primer pago = 137359297433
+- Consultando BD PROD (diri_webhook_mercadopago) con folio_mercadopago...
+- Registro encontrado en PROD (diri_webhook_mercadopago).
+- Verificando si ya existe registro en UAT (diri_webhook_mercadopago) para ese folio_mercadopago...
+- No existía registro en UAT; insertando registro en UAT (diri_webhook_mercadopago)...
+- Registro insertado en UAT con id = 20622564
+- Actualizando estatus en UAT a 'PENDIENTE' para ese folio_mercadopago...
+- Estatus actualizado a 'PENDIENTE' en UAT para ese folio_mercadopago (affectedRows = 1).
+- Metadata obtenida desde registroProd; lista para usar en API procesanotificacionmercadopago.
+- Metadata parseada correctamente como JSON.
+- Llamando API procesanotificacionmercadopago (POST) para marca 17...
+- API procesanotificacionmercadopago respondió con status HTTP 200, codRespuesta = OK, detalle = SE PROCESO CON EXITO LA PETICION
+- API procesanotificacionmercadopago procesó la notificación con éxito (codRespuesta OK).
+- Validando en tabla de negocio UAT: diriprod.diri_recarga (recarga, estatus OK/PAGADO)...
+- Recarga en UAT encontrada con estatus exitoso (OK) para ese folio.
+- Validando folioCompra en MongoDB ECOMMERCEDB.tbl_orders por patrón en _id...
+- Orden encontrada en MongoDB para ese folioCompra.
+- Estado en MongoDB considerado exitoso (PAID) para ese folio.
+- Llamando API detalle consumo DN (DESPUES_DE_REPROCESO) webresources/consultaConsumo (POST)...
+- API detalle consumo DN (DESPUES_DE_REPROCESO) respondió correctamente: HTTP 200.
+- Se detectaron 7 diferencias en la respuesta de detalle consumo DN entre ANTES y DESPUES del reproceso.
+
+---- DETALLE CONSUMO DN - ANTES_DE_REPROCESO ----
+{
+  "codRespuesta": "OK",
+  "detalle": "SE PROCESO CON EXITO LA PETICION",
+  "perfilClienteApp": {
+    "lineas": [
+      {
+        "datoslinea": {
+          "dn": "5612457662",
+          "esprincipal": "1",
+          "fechacorte": "12-01-2026",
+          "offeridaltan": "1509944009",
+          "plancontratado": "MIFI 5GB",
+          "tipo": "prepago",
+          "codigoplanref": "b183f1",
+          "recargaVigente": "SI",
+          "fechasRecarga": {
+            "ultimarecarga": "2025-12-12 12:54:20",
+            "vigenciarecarga": "2026-01-12 12:00:00"
+          },
+          "nobanda28": "NO",
+          "categoria_plan": "NORMAL"
+        },
+        "subscriber": {
+          "msisdn": "5612457662",
+          "imsi": "334140217467280",
+          "iccid": "8952140063585004750",
+          "imei": "35983473657467",
+          "status": "Active",
+          "product": "Mifi",
+          "coordinates": ","
+        },
+        "sms": {
+          "disponible": 0,
+          "consumo": 0,
+          "total": 0,
+          "ilimitado": "NO"
+        },
+        "voz": {
+          "disponible": 0,
+          "consumo": 0,
+          "total": 0,
+          "ilimitado": "NO"
+        },
+        "datos": {
+          "disponible": 29.4,
+          "consumo": 0.6,
+          "total": 30,
+          "ilimitado": "NO"
+        },
+        "rs": {
+          "disponible": 18.1,
+          "consumo": 0,
+          "total": 18.1,
+          "ilimitado": "NO"
+        },
+        "throttlin": {
+          "disponible": 0,
+          "consumo": 0,
+          "total": 0,
+          "ilimitado": "NO"
+        }
+      }
+    ],
+    "fallaAltan": false
+  }
+}
+
+---- DETALLE CONSUMO DN - DESPUES_DE_REPROCESO ----
+{
+  "codRespuesta": "OK",
+  "detalle": "SE PROCESO CON EXITO LA PETICION",
+  "perfilClienteApp": {
+    "lineas": [
+      {
+        "datoslinea": {
+          "dn": "5612457662",
+          "esprincipal": "1",
+          "fechacorte": "15-01-2026",
+          "offeridaltan": "1509944009",
+          "plancontratado": "MIFI 5GB",
+          "tipo": "prepago",
+          "codigoplanref": "b183f1",
+          "recargaVigente": "SI",
+          "fechasRecarga": {
+            "ultimarecarga": "2025-12-15 10:13:02",
+            "vigenciarecarga": "2026-01-15 12:00:00"
+          },
+          "nobanda28": "NO",
+          "categoria_plan": "NORMAL"
+        },
+        "subscriber": {
+          "msisdn": "5612457662",
+          "imsi": "334140217467280",
+          "iccid": "8952140063585004750",
+          "imei": "35983473657467",
+          "status": "Active",
+          "product": "Mifi",
+          "coordinates": ","
+        },
+        "sms": {
+          "disponible": 0,
+          "consumo": 0,
+          "total": 0,
+          "ilimitado": "NO"
+        },
+        "voz": {
+          "disponible": 0,
+          "consumo": 0,
+          "total": 0,
+          "ilimitado": "NO"
+        },
+        "datos": {
+          "disponible": 34.4,
+          "consumo": 0.6,
+          "total": 35,
+          "ilimitado": "NO"
+        },
+        "rs": {
+          "disponible": 21.1,
+          "consumo": 0,
+          "total": 21.1,
+          "ilimitado": "NO"
+        },
+        "throttlin": {
+          "disponible": 0,
+          "consumo": 0,
+          "total": 0,
+          "ilimitado": "NO"
+        }
+      }
+    ],
+    "fallaAltan": false
+  }
+}
+
+---- DIFERENCIAS DETALLE CONSUMO (ANTES vs DESPUES) ----
+[
+  {
+    "path": "perfilClienteApp.lineas[0].datoslinea.fechacorte",
+    "antes": "12-01-2026",
+    "despues": "15-01-2026"
+  },
+  {
+    "path": "perfilClienteApp.lineas[0].datoslinea.fechasRecarga.ultimarecarga",
+    "antes": "2025-12-12 12:54:20",
+    "despues": "2025-12-15 10:13:02"
+  },
+  {
+    "path": "perfilClienteApp.lineas[0].datoslinea.fechasRecarga.vigenciarecarga",
+    "antes": "2026-01-12 12:00:00",
+    "despues": "2026-01-15 12:00:00"
+  },
+  {
+    "path": "perfilClienteApp.lineas[0].datos.disponible",
+    "antes": 29.4,
+    "despues": 34.4
+  },
+  {
+    "path": "perfilClienteApp.lineas[0].datos.total",
+    "antes": 30,
+    "despues": 35
+  },
+  {
+    "path": "perfilClienteApp.lineas[0].rs.disponible",
+    "antes": 18.1,
+    "despues": 21.1
+  },
+  {
+    "path": "perfilClienteApp.lineas[0].rs.total",
+    "antes": 18.1,
+    "despues": 21.1
+  }
+]
+
+---- DETALLE MERCADOPAGO ----
+>>> Registro PROD (diri_webhook_mercadopago):
+{
+  "id": 20622564,
+  "id_mercadopago": "127209459489",
+  "folio_mercadopago": "137359297433",
+  "tipo": "payment",
+  "accion": "payment.created",
+  "metadata": "{\"action\":\"payment.created\",\"api_version\":\"v1\",\"data\":{\"id\":\"137359297433\"},\"date_created\":\"2025-12-15T16:12:10Z\",\"id\":127209459489,\"live_mode\":true,\"type\":\"payment\",\"user_id\":\"669403414\"}",
+  "fecha_registro": "2025-12-15T16:12:12.000Z",
+  "folio": "webp_1765815089634",
+  "request": "https://api.mercadopago.com/v1/payments/137359297433",
+  "response": "{\"accounts_info\":null,\"acquirer_reconciliation\":[],\"additional_info\":{\"ip_address\":\"148.244.132.38\",\"items\":[{\"category_id\":\"others\",\"description\":\"Recarga de Plan MIFI 5GB\",\"id\":\"1509944009\",\"quantity\":\"1\",\"title\":\"MIFI 5GB\",\"unit_price\":\"150\"}],\"payer\":{\"address\":{\"street_name\":\"calle 22\",\"street_number\":\"123\",\"zip_code\":\"12122\"},\"first_name\":\"Recarga Diri\",\"last_name\":\"AP  AM\",\"phone\":{\"area_code\":\"+52\",\"number\":\"5612457662\"}},\"tracking_id\":\"platform:v1-blacklabel,so:ALL,type:N/A,security:none\"},\"authorization_code\":\"006901\",\"binary_mode\":false,\"brand_id\":null,\"build_version\":\"3.135.0-rc-1\",\"call_for_authorize_id\":null,\"captured\":true,\"card\":{\"bin\":\"51450995\",\"cardholder\":{\"identification\":{\"number\":null,\"type\":null},\"name\":\"Edgar Villegas Olvera\"},\"country\":\"MEX\",\"date_created\":\"2025-12-15T12:12:10.000-04:00\",\"date_last_updated\":\"2025-12-15T12:12:10.000-04:00\",\"expiration_month\":11,\"expiration_year\":2033,\"first_six_digits\":\"514509\",\"id\":\"9700627699\",\"last_four_digits\":\"6421\",\"tags\":[\"credit\"]},\"charges_details\":[{\"accounts\":{\"from\":\"collector\",\"to\":\"mp\"},\"amounts\":{\"original\":4.28,\"refunded\":0},\"client_id\":0,\"date_created\":\"2025-12-15T12:12:10.000-04:00\",\"external_charge_id\":\"01KCHCH65X58N2R3VBPFKPD83M\",\"id\":\"137359297433-001\",\"last_updated\":\"2025-12-15T12:12:10.000-04:00\",\"metadata\":{\"reason\":\"\",\"source\":\"proc-svc-charges\",\"source_detail\":\"processing_fee_charge\"},\"name\":\"mercadopago_fee\",\"refund_charges\":[],\"reserve_id\":null,\"type\":\"fee\"}],\"charges_execution_info\":{\"internal_execution\":{\"date\":\"2025-12-15T12:12:10.328-04:00\",\"execution_id\":\"01KCHCH656JRS4RJRYEK1X701Z\"}},\"collector_id\":669403414,\"corporation_id\":null,\"counter_currency\":null,\"coupon_amount\":0,\"currency_id\":\"MXN\",\"date_approved\":\"2025-12-15T12:12:12.000-04:00\",\"date_created\":\"2025-12-15T12:12:10.000-04:00\",\"date_last_updated\":\"2025-12-15T12:12:18.000-04:00\",\"date_of_expiration\":null,\"deduction_schema\":null,\"description\":\"MIFI 5GB\",\"differential_pricing_id\":null,\"external_reference\":\"webp_1765815089634\",\"fee_details\":[{\"amount\":4.28,\"fee_payer\":\"collector\",\"type\":\"mercadopago_fee\"}],\"financing_group\":\"\",\"id\":137359297433,\"installments\":1,\"integrator_id\":null,\"issuer_id\":\"162\",\"live_mode\":true,\"marketplace_owner\":null,\"merchant_account_id\":null,\"merchant_number\":null,\"metadata\":{},\"money_release_date\":\"2025-12-15T12:12:12.000-04:00\",\"money_release_schema\":null,\"money_release_status\":\"released\",\"notification_url\":\"https://serviciosweb.diri.mx/webresources/mercadopagowebhook2/1\",\"operation_type\":\"regular_payment\",\"order\":{\"id\":\"36446217602\",\"type\":\"mercadopago\"},\"payer\":{\"email\":\"etestuat@gmail.com\",\"entity_type\":null,\"first_name\":null,\"id\":\"203956628\",\"identification\":{\"number\":\"VIOE880729HDFLLD09\",\"type\":\"CURP\"},\"last_name\":null,\"operator_id\":null,\"phone\":{\"number\":null,\"extension\":null,\"area_code\":null},\"type\":null},\"payment_method\":{\"data\":{\"routing_data\":{\"merchant_account_id\":\"112\"}},\"id\":\"master\",\"issuer_id\":\"162\",\"type\":\"credit_card\"},\"payment_method_id\":\"master\",\"payment_type_id\":\"credit_card\",\"platform_id\":null,\"point_of_interaction\":{\"application_data\":{\"name\":\"checkout-off\",\"operating_system\":null,\"version\":\"v2\"},\"business_info\":{\"branch\":\"Merchant Services\",\"sub_unit\":\"checkout_pro\",\"unit\":\"online_payments\"},\"location\":{\"source\":\"Payer\",\"state_id\":\"MX-DIF\"},\"transaction_data\":{\"e2e_id\":null,\"ticket_id\":\"55808071587_746f77777d677f7e327e_P\"},\"type\":\"CHECKOUT\"},\"pos_id\":null,\"processing_mode\":\"aggregator\",\"refunds\":[],\"release_info\":null,\"shipping_amount\":0,\"sponsor_id\":null,\"statement_descriptor\":\"MERCADOPAGO *DIRIRECA\",\"status\":\"approved\",\"status_detail\":\"accredited\",\"store_id\":null,\"tags\":null,\"taxes_amount\":0,\"transaction_amount\":150,\"transaction_amount_refunded\":0,\"transaction_details\":{\"acquirer_reference\":null,\"external_resource_url\":null,\"financial_institution\":null,\"installment_amount\":150,\"net_received_amount\":145.72,\"overpaid_amount\":0,\"payable_deferral_period\":null,\"payment_method_reference_id\":null,\"total_paid_amount\":150}}",
+  "tipo_diri": "",
+  "estatus": "fallido",
+  "fecha_actualiza": "2025-12-15T16:12:44.000Z"
+}
+>>> Resultado insert/estatus en UAT (MercadoPago):
+{
+  "insertId": 20622564,
+  "affectedRows": 1
+}
+>>> Metadata Raw (MercadoPago):
+"{\"action\":\"payment.created\",\"api_version\":\"v1\",\"data\":{\"id\":\"137359297433\"},\"date_created\":\"2025-12-15T16:12:10Z\",\"id\":127209459489,\"live_mode\":true,\"type\":\"payment\",\"user_id\":\"669403414\"}"
+>>> Metadata Parseada (MercadoPago):
+{
+  "action": "payment.created",
+  "api_version": "v1",
+  "data": {
+    "id": "137359297433"
+  },
+  "date_created": "2025-12-15T16:12:10Z",
+  "id": 127209459489,
+  "live_mode": true,
+  "type": "payment",
+  "user_id": "669403414"
+}
+>>> Respuesta API procesanotificacionmercadopago:
+{
+  "codRespuesta": "OK",
+  "detalle": "SE PROCESO CON EXITO LA PETICION"
+}
+
+---- MONGODB ECOMMERCEDB.tbl_orders ----
+Orden encontrada: Sí
+{
+  "_id": "webp_1765815089634",
+  "customer": {
+    "name": "Recarga Diri",
+    "surname_first": "Recarga Diri",
+    "surname_second": "Recarga Diri",
+    "email": "evillegas@diri.mx",
+    "phone": "5612457662",
+    "birth_date": "",
+    "nacionality": "",
+    "gender": "",
+    "identifier_type": "",
+    "identifier_number": "",
+    "phone_cell": "5612457662",
+    "phone_home": "5612457662",
+    "phone_bussines": "5612457662"
+  },
+  "shipping_address": {
+    "street": "Calle Prueba",
+    "num_ext": "01",
+    "num_int": "10",
+    "postal_code": "00000",
+    "neighborhood": "benito juarez",
+    "crosstreet": "calle",
+    "reference": "1509944009"
+  },
+  "products": [
+    {
+      "name": "Plan",
+      "referencia": "DIRI-MP-RM-NR-BE-5000M-3000RS-30D",
+      "phone_number": "5612457662",
+      "portable": false,
+      "portability_nip": "",
+      "import": 150,
+      "locked_hours": 72,
+      "payment_form": "mercadopago",
+      "quotas_number": 1
+    }
+  ],
+  "created_date": "1765815089637",
+  "status": "PAID",
+  "expiration_date": "2025-12-15 16:11:29",
+  "ip": "148.244.132.38",
+  "link": "https://confirma.diri.mx/order?folio=webp_1765815089634",
+  "imei": "NA",
+  "notify": "mail",
+  "channel": "web",
+  "oxxo_reference": "MERCADOPAGO",
+  "oxxo_barcode": "",
+  "oxxo_barcode_url": "",
+  "processed": false,
+  "fulfilled": false,
+  "delivered": false,
+  "process_date": "",
+  "_class": "com.diri.orders.model.Order"
+}
