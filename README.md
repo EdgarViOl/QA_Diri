@@ -32,7 +32,7 @@ Pasarelas implementadas:
 - **MercadoPago** (completo)
 - **PayPal** (completo)
 - **OpenPay** (completo)
-- **Stripe** (aún no implementado)
+- **Stripe** (completo )
 
 Flujo general resumido:
 1. Validar parámetros de entrada (folioCompra, dn, gateway, tipoOperacion, brandNumber, purchaseDate).
