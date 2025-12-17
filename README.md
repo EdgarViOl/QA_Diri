@@ -14,8 +14,7 @@ inserción en UAT y reproceso mediante APIs internas.
 - [3. Flujos por Pasarela](#3-flujos-por-pasarela)
   - [3.1 MercadoPago](#31-mercadopago)
   - [3.2 PayPal](#32-paypal)
-  - [3.3 OpenPay](#33-openpay)
-- [4. Request/Response del Endpoint POST /run-flow](#4-requestresponse-del-endpoint-post-run-flow)
+  - [3.3 OpenPay](#33-openpay)  - [3.4 Stripe](#34-stripe)- [4. Request/Response del Endpoint POST /run-flow](#4-requestresponse-del-endpoint-post-run-flow)
 - [5. Frontend — Vistas y funcionalidades](#5-frontend--vistas-y-funcionalidades)
   - [index.html](#indexhtml)
   - [compare_consumo.html](#compare_consumohtml)
@@ -98,20 +97,20 @@ La API interna `consultaConsumo` permite capturar el estado del DN antes y despu
 flowchart TD
   Start["Inicio / POST /run-flow"] --> Validaciones["Validaciones: folioCompra, brandNumber, dn, gateway"]
   Validaciones --> ConsumoAntes["API detalle consumo ANTES"]
-  ConsumoAntes --> MPsearch["MercadoPago: GET /v1/payments/search (external_reference=folioCompra)"]
-  MPsearch -->|no results| NoResults["SIN_RESULTADOS (404)"]
-  MPsearch -->|found folioMercado| ConsultaProd["SELECT PROD (diri_webhook_mercadopago)"]
-  ConsultaProd -->|no rows| NoProd["SIN_REGISTRO_PROD (404)"]
+  ConsumoAntes --> MPsearch["MercadoPago - GET /v1/payments/search external_reference=folioCompra"]
+  MPsearch -->|"no results"| NoResults["SIN_RESULTADOS 404"]
+  MPsearch -->|"found folioMercado"| ConsultaProd["SELECT PROD diri_webhook_mercadopago"]
+  ConsultaProd -->|"no rows"| NoProd["SIN_REGISTRO_PROD 404"]
   ConsultaProd --> VerificarUat["Verificar existencia en UAT"]
-  VerificarUat -->|exists| ExisteUat["EXISTE_EN_UAT (409)"]
-  VerificarUat -->|not exists| InsertUat["INSERT en UAT"]
-  InsertUat --> UpdateUat["UPDATE estatus='PENDIENTE' en UAT"]
+  VerificarUat -->|"exists"| ExisteUat["EXISTE_EN_UAT 409"]
+  VerificarUat -->|"not exists"| InsertUat["INSERT en UAT"]
+  InsertUat --> UpdateUat["UPDATE estatus PENDIENTE en UAT"]
   UpdateUat --> ParseMetadata["Parse metadata -> metadataParsed"]
-  ParseMetadata -->|invalid| MetadataInvalid["METADATA_INVALIDA_PARA_API2 (500)"]
+  ParseMetadata -->|"invalid"| MetadataInvalid["METADATA_INVALIDA_PARA_API2 500"]
   ParseMetadata --> CallAPI["POST /procesanotificacionmercadopago/{brandNumber}"]
-  CallAPI -->|error| ApiError["API2_RESPUESTA_NO_OK (502)"]
-  CallAPI --> ValidacionesNegocio["Validaciones de negocio (diri_recarga / diri_preventa)"]
-  ValidacionesNegocio --> MongoVal["Validar MongoDB (tbl_orders)"]
+  CallAPI -->|"error"| ApiError["API2_RESPUESTA_NO_OK 502"]
+  CallAPI --> ValidacionesNegocio["Validaciones de negocio diri_recarga / diri_preventa"]
+  ValidacionesNegocio --> MongoVal["Validar MongoDB tbl_orders"]
   MongoVal --> ConsumoDespues["API detalle consumo DESPUES"]
   ConsumoDespues --> ComputeDiff["computeJsonDiff(ANTES,DESPUES)"]
   ComputeDiff --> Response["200: Responder JSON con logs y detalles"]
@@ -149,19 +148,19 @@ flowchart TD
 **Diagrama:**
 ```mermaid
 flowchart TD
-  Start["Inicio / POST /run-flow"] --> ValidacionesPP["Validaciones: purchaseDate (YYYY-MM-DD), folioCompra, dn"]
-  ValidacionesPP --> ConsumoAntesPP["API detalle consumo (ANTES)"]
-  ConsumoAntesPP --> ProdQuery1["SELECT PROD (diri_webhook_paypal) por metadata ~ folioCompra + fecha >= purchaseDate"]
-  ProdQuery1 -->|no rows| NoProdPP["SIN_REGISTRO_PROD_PAYPAL (404)"]
-  ProdQuery1 -->|rows| ExtractId["idrecurso = registros[0].idrecurso"]
+  Start["Inicio / POST /run-flow"] --> ValidacionesPP["Validaciones: purchaseDate YYYY-MM-DD, folioCompra, dn"]
+  ValidacionesPP --> ConsumoAntesPP["API detalle consumo ANTES"]
+  ConsumoAntesPP --> ProdQuery1["SELECT PROD diri_webhook_paypal where metadata contains folioCompra and fecha >= purchaseDate"]
+  ProdQuery1 -->|"no rows"| NoProdPP["SIN_REGISTRO_PROD_PAYPAL 404"]
+  ProdQuery1 -->|"rows"| ExtractId["idrecurso = registros[0].idrecurso"]
   ExtractId --> ProdQuery2["SELECT PROD por idrecurso"]
-  ProdQuery2 -->|no rows| NoProdPP2["SIN_REGISTRO_PROD_PAYPAL (404)"]
-  ProdQuery2 -->|found evento 'PAYMENT.CAPTURE.COMPLETED'| VerificarUatPP["Verificar existencia en UAT por idrecurso"]
-  VerificarUatPP -->|exists| ExisteUatPP["EXISTE_EN_UAT_PAYPAL (409)"]
-  VerificarUatPP -->|not exists| InsertUatPP["INSERT en UAT"]
-  InsertUatPP --> ParseMetadataPP["Parse metadata → metadataParsedPaypal"]
+  ProdQuery2 -->|"no rows"| NoProdPP2["SIN_REGISTRO_PROD_PAYPAL 404"]
+  ProdQuery2 -->|"found evento PAYMENT.CAPTURE.COMPLETED"| VerificarUatPP["Verificar existencia en UAT por idrecurso"]
+  VerificarUatPP -->|"exists"| ExisteUatPP["EXISTE_EN_UAT_PAYPAL 409"]
+  VerificarUatPP -->|"not exists"| InsertUatPP["INSERT en UAT"]
+  InsertUatPP --> ParseMetadataPP["Parse metadata -> metadataParsedPaypal"]
   ParseMetadataPP --> CallPaypalAPI["POST /paypalwebhook"]
-  CallPaypalAPI -->|error| ApiErrorPP["API_PAYPAL_RESPUESTA_NO_OK (502)"]
+  CallPaypalAPI -->|"error"| ApiErrorPP["API_PAYPAL_RESPUESTA_NO_OK 502"]
   CallPaypalAPI --> ValidacionesNegocioPP["Validaciones de negocio + Validar MongoDB"]
   ValidacionesNegocioPP --> ConsumoDespuesPP["API detalle consumo DESPUES"]
   ConsumoDespuesPP --> ComputeDiffPP["computeJsonDiff(ANTES,DESPUES)"]

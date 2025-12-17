@@ -283,30 +283,30 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-  Start[Inicio / POST /run-flow] --> Validaciones[Validaciones: folioCompra, brandNumber, dn, gateway]
+  Start["Inicio / POST /run-flow"] --> Validaciones["Validaciones: folioCompra, brandNumber, dn, gateway"]
   Validaciones --> ConsumoAntes["API detalle consumo ANTES"]
-  ConsumoAntes --> MPsearch["MercadoPago: GET /v1/payments/search (external_reference=folioCompra)"]
-  MPsearch -->|no results| NoResults[SIN_RESULTADOS (404)]
-  MPsearch -->|found folioMercado| ConsultaProd[SELECT PROD (diri_webhook_mercadopago)]
-  ConsultaProd -->|no rows| NoProd[SIN_REGISTRO_PROD (404)]
-  ConsultaProd --> VerificarUat[Verificar existencia en UAT]
-  VerificarUat -->|exists| ExisteUat[EXISTE_EN_UAT (409)]
-  VerificarUat -->|not exists| InsertUat[INSERT en UAT]
-  InsertUat --> UpdateUat[UPDATE estatus='PENDIENTE' en UAT]
-  UpdateUat --> ParseMetadata[Parse metadata → metadataParsed]
-  ParseMetadata -->|invalid| MetadataInvalid[METADATA_INVALIDA_PARA_API2 (500)]
-  ParseMetadata --> CallAPI[POST /procesanotificacionmercadopago/{brandNumber}]
-  CallAPI -->|error| ApiError[API2_RESPUESTA_NO_OK (502)]
-  CallAPI --> ValidacionesNegocio[Validaciones de negocio (diri_recarga / diri_preventa)]
-  ValidacionesNegocio --> MongoVal["Validar MongoDB (tbl_orders)"]
+  ConsumoAntes --> MPsearch["MercadoPago - GET /v1/payments/search external_reference=folioCompra"]
+  MPsearch -->|"no results"| NoResults["SIN_RESULTADOS 404"]
+  MPsearch -->|"found folioMercado"| ConsultaProd["SELECT PROD diri_webhook_mercadopago"]
+  ConsultaProd -->|"no rows"| NoProd["SIN_REGISTRO_PROD 404"]
+  ConsultaProd --> VerificarUat["Verificar existencia en UAT"]
+  VerificarUat -->|"exists"| ExisteUat["EXISTE_EN_UAT 409"]
+  VerificarUat -->|"not exists"| InsertUat["INSERT en UAT"]
+  InsertUat --> UpdateUat["UPDATE estatus PENDIENTE en UAT"]
+  UpdateUat --> ParseMetadata["Parse metadata -> metadataParsed"]
+  ParseMetadata -->|"invalid"| MetadataInvalid["METADATA_INVALIDA_PARA_API2 500"]
+  ParseMetadata --> CallAPI["POST /procesanotificacionmercadopago/{brandNumber}"]
+  CallAPI -->|"error"| ApiError["API2_RESPUESTA_NO_OK 502"]
+  CallAPI --> ValidacionesNegocio["Validaciones de negocio diri_recarga / diri_preventa"]
+  ValidacionesNegocio --> MongoVal["Validar MongoDB tbl_orders"]
   MongoVal --> ConsumoDespues["API detalle consumo DESPUES"]
   ConsumoDespues --> ComputeDiff["computeJsonDiff(ANTES,DESPUES)"]
   ComputeDiff --> Response["200: Responder JSON con logs y detalles"]
   NoResults --> ResponseErr1["Responder 404"]
   NoProd --> ResponseErr2["Responder 404"]
-  ExisteUat --> ResponseErr3[Responder 409]
-  MetadataInvalid --> ResponseErr4[Responder 500]
-  ApiError --> ResponseErr5[Responder 502]
+  ExisteUat --> ResponseErr3["Responder 409"]
+  MetadataInvalid --> ResponseErr4["Responder 500"]
+  ApiError --> ResponseErr5["Responder 502"]
 ```
 
 
@@ -314,20 +314,20 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-  Start[Inicio / POST /run-flow] --> ValidacionesPP[Validaciones: purchaseDate (YYYY-MM-DD), folioCompra, dn]
-  ValidacionesPP --> ConsumoAntesPP[API detalle consumo (ANTES)]
-  ConsumoAntesPP --> ProdQuery1[SELECT PROD (diri_webhook_paypal) por metadata ~ folioCompra + fecha >= purchaseDate]
-  ProdQuery1 -->|no rows| NoProdPP[SIN_REGISTRO_PROD_PAYPAL (404)]
-  ProdQuery1 -->|rows| ExtractId[idrecurso = registros[0].idrecurso]
-  ExtractId --> ProdQuery2[SELECT PROD por idrecurso]
-  ProdQuery2 -->|no rows| NoProdPP2[SIN_REGISTRO_PROD_PAYPAL (404)]
-  ProdQuery2 -->|found evento 'PAYMENT.CAPTURE.COMPLETED'| VerificarUatPP[Verificar existencia en UAT por idrecurso]
-  VerificarUatPP -->|exists| ExisteUatPP[EXISTE_EN_UAT_PAYPAL (409)]
-  VerificarUatPP -->|not exists| InsertUatPP[INSERT en UAT]
-  InsertUatPP --> ParseMetadataPP[Parse metadata → metadataParsedPaypal]
-  ParseMetadataPP --> CallPaypalAPI[POST /paypalwebhook]
-  CallPaypalAPI -->|error| ApiErrorPP[API_PAYPAL_RESPUESTA_NO_OK (502)]
-  CallPaypalAPI --> ValidacionesNegocioPP[Validaciones de negocio + Validar MongoDB]
+  Start["Inicio / POST /run-flow"] --> ValidacionesPP["Validaciones: purchaseDate YYYY-MM-DD, folioCompra, dn"]
+  ValidacionesPP --> ConsumoAntesPP["API detalle consumo ANTES"]
+  ConsumoAntesPP --> ProdQuery1["SELECT PROD diri_webhook_paypal where metadata contains folioCompra and fecha >= purchaseDate"]
+  ProdQuery1 -->|"no rows"| NoProdPP["SIN_REGISTRO_PROD_PAYPAL 404"]
+  ProdQuery1 -->|"rows"| ExtractId["idrecurso = registros[0].idrecurso"]
+  ExtractId --> ProdQuery2["SELECT PROD por idrecurso"]
+  ProdQuery2 -->|"no rows"| NoProdPP2["SIN_REGISTRO_PROD_PAYPAL 404"]
+  ProdQuery2 -->|"found evento PAYMENT.CAPTURE.COMPLETED"| VerificarUatPP["Verificar existencia en UAT por idrecurso"]
+  VerificarUatPP -->|"exists"| ExisteUatPP["EXISTE_EN_UAT_PAYPAL 409"]
+  VerificarUatPP -->|"not exists"| InsertUatPP["INSERT en UAT"]
+  InsertUatPP --> ParseMetadataPP["Parse metadata -> metadataParsedPaypal"]
+  ParseMetadataPP --> CallPaypalAPI["POST /paypalwebhook"]
+  CallPaypalAPI -->|"error"| ApiErrorPP["API_PAYPAL_RESPUESTA_NO_OK 502"]
+  CallPaypalAPI --> ValidacionesNegocioPP["Validaciones de negocio + Validar MongoDB"]
   ValidacionesNegocioPP --> ConsumoDespuesPP["API detalle consumo DESPUES"]
   ConsumoDespuesPP --> ComputeDiffPP["computeJsonDiff(ANTES,DESPUES)"]
   ComputeDiffPP --> ResponsePP[200: Responder JSON con logs y detalles]
@@ -342,27 +342,93 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-  StartOP[Inicio / POST /run-flow] --> ValidacionesOP[Validaciones + API detalle consumo (ANTES)]
-  ValidacionesOP --> ConsultaProdOP[SELECT PROD (diri_webhook_openpay) WHERE folio = folioCompra]
-  ConsultaProdOP -->|no rows| NoProdOP[SIN_REGISTRO_PROD_OPENPAY (404)]
-  ConsultaProdOP --> VerificarUatOP[Verificar existencia en UAT por folio]
-  VerificarUatOP -->|exists| ExisteUatOP[EXISTE_EN_UAT_OPENPAY (409)]
-  VerificarUatOP -->|not exists| InsertUatOP[INSERT en UAT]
-  InsertUatOP --> RecuperarMeta[SELECT UAT + Parse metadata → metadataParsedOpenpay]
-  RecuperarMeta -->|invalid| MetadataInvalidOP[METADATA_INVALIDA_PARA_API_OPENPAY (500)]
-  RecuperarMeta --> BuildOpenpay[Construir JSON webhook OpenPay (template + substitutions)]
-  BuildOpenpay --> CallOpenpay[POST /webhookopenpay]
-  CallOpenpay -->|error| ApiErrorOP[API_OPENPAY_RESPUESTA_NO_OK (502)]
-  CallOpenpay --> ValidacionesNegocioOP[Validaciones de negocio + Validar MongoDB]
+  StartOP["Inicio / POST /run-flow"] --> ValidacionesOP["Validaciones y API detalle consumo ANTES"]
+  ValidacionesOP --> ConsultaProdOP["SELECT PROD diri_webhook_openpay WHERE folio = folioCompra"]
+  ConsultaProdOP -->|"no rows"| NoProdOP["SIN_REGISTRO_PROD_OPENPAY 404"]
+  ConsultaProdOP --> VerificarUatOP["Verificar existencia en UAT por folio"]
+  VerificarUatOP -->|"exists"| ExisteUatOP["EXISTE_EN_UAT_OPENPAY 409"]
+  VerificarUatOP -->|"not exists"| InsertUatOP["INSERT en UAT"]
+  InsertUatOP --> RecuperarMeta["SELECT UAT y Parse metadata -> metadataParsedOpenpay"]
+  RecuperarMeta -->|"invalid"| MetadataInvalidOP["METADATA_INVALIDA_PARA_API_OPENPAY 500"]
+  RecuperarMeta --> BuildOpenpay["Construir JSON webhook OpenPay: template + substitutions"]
+  BuildOpenpay --> CallOpenpay["POST /webhookopenpay"]
+  CallOpenpay -->|"error"| ApiErrorOP["API_OPENPAY_RESPUESTA_NO_OK 502"]
+  CallOpenpay --> ValidacionesNegocioOP["Validaciones de negocio y validar MongoDB"]
   ValidacionesNegocioOP --> ConsumoDespuesOP["API detalle consumo DESPUES"]
   ConsumoDespuesOP --> ComputeDiffOP["computeJsonDiff(ANTES,DESPUES)"]
-  ComputeDiffOP --> ResponseOP[200: Responder JSON con logs y detalles]
-  NoProdOP --> ResponseErrOP1[Responder 404]
+  ComputeDiffOP --> ResponseOP["200: Responder JSON con logs y detalles"]
+  NoProdOP --> ResponseErrOP1["Responder 404"]
   ExisteUatOP --> ResponseErrOP2[Responder 409]
   MetadataInvalidOP --> ResponseErrOP3[Responder 500]
   ApiErrorOP --> ResponseErrOP4[Responder 502]
 ```
 
+
+---
+
+### Flujo Stripe
+
+```mermaid
+flowchart TD
+  StartS["Inicio / POST /run-flow"] --> ValidacionesS["Validaciones: folioCompra, dn, gateway=stripe"]
+  ValidacionesS --> ConsumoAntesS["API detalle consumo ANTES"]
+  ConsumoAntesS --> ConsultaProdS["SELECT PROD diri_webhook_stripe WHERE folio = folioCompra"]
+  ConsultaProdS -->|"no rows"| NoProdS["SIN_REGISTRO_PROD_STRIPE 404"]
+  ConsultaProdS --> VerificarUatS["Verificar existencia en UAT"]
+  VerificarUatS -->|"exists"| ExisteUatS["EXISTE_EN_UAT_STRIPE 409"]
+  VerificarUatS -->|"not exists"| InsertUatS["INSERT en UAT"]
+  InsertUatS --> RecuperarMetaS["SELECT UAT y Parse metadata -> metadataParsedStripe"]
+  RecuperarMetaS --> CallStripeAPI["POST /stripeWebhook"]
+  CallStripeAPI -->|"error"| ApiErrorS["API_STRIPE_RESPUESTA_NO_OK 502"]
+  CallStripeAPI --> ValidacionesS["Validaciones de negocio y validar MongoDB"]
+  ValidacionesS --> ConsumoDespuesS["API detalle consumo DESPUES"]
+  ConsumoDespuesS --> ComputeDiffS["computeJsonDiff(ANTES,DESPUES)"]
+  ComputeDiffS --> ResponseS["200: Responder JSON con logs y detalles"]
+  NoProdS --> ResponseErrS1["Responder 404"]
+```
+
+**Pasos (detalle):**
+
+1. VALIDACIONES
+   ├─ Validar folioCompra (string)
+   ├─ Validar dn (10 dígitos)
+   └─ Validar gateway == 'stripe'
+
+2. API DETALLE CONSUMO (ANTES)
+   └─ GET /consultaConsumo + { marca, dn }
+
+3. CONSULTA PROD
+   ├─ SELECT * FROM diri_webhook_stripe (PROD)
+   │   WHERE folio = folioCompra
+   ├─ Si no hay resultados → Error SIN_REGISTRO_PROD_STRIPE (404)
+   └─ Parse: registroProdStripe
+
+4. VERIFICAR EXISTENCIA EN UAT
+   ├─ SELECT * FROM diri_webhook_stripe (UAT)
+   │   WHERE folio = folioCompra
+   ├─ Si existe → Error EXISTE_EN_UAT_STRIPE (409)
+   └─ Si no existe → Continuar
+
+5. INSERT EN UAT
+   ├─ INSERT INTO diri_webhook_stripe (UAT)
+   │   SET registroProdStripe
+   └─ affectedRows > 0 ✓
+
+6. RECUPERAR METADATA DESDE UAT
+   ├─ SELECT * FROM diri_webhook_stripe (UAT)
+   │   WHERE folio = folioCompra
+   ├─ Parse metadata → metadataParsedStripe
+
+7. API STRIPE WEBHOOK
+   ├─ POST https://uatserviciosweb.diri.mx/webresources/stripeWebhook
+   │   Body: metadataParsedStripe
+   ├─ Status: 200
+   ├─ Response: { codRespuesta: "OK", detalle: "SE PROCESO CON EXITO LA PETICION" }
+   └─ Si error → Error API_STRIPE_RESPUESTA_NO_OK (502)
+
+8. VALIDACIONES DE NEGOCIO + MONGODB + CONSUMO
+   ├─ Idem a pasos anteriores
+   └─ Respuesta 200 + JSON
 
 ---
 
