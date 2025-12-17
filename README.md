@@ -97,7 +97,7 @@ La API interna `consultaConsumo` permite capturar el estado del DN antes y despu
 ```mermaid
 flowchart TD
   Start["Inicio / POST /run-flow"] --> Validaciones["Validaciones: folioCompra, brandNumber, dn, gateway"]
-  Validaciones --> ConsumoAntes["API detalle consumo (ANTES)"]
+  Validaciones --> ConsumoAntes["API detalle consumo ANTES"]
   ConsumoAntes --> MPsearch["MercadoPago: GET /v1/payments/search (external_reference=folioCompra)"]
   MPsearch -->|no results| NoResults["SIN_RESULTADOS (404)"]
   MPsearch -->|found folioMercado| ConsultaProd["SELECT PROD (diri_webhook_mercadopago)"]
@@ -106,14 +106,14 @@ flowchart TD
   VerificarUat -->|exists| ExisteUat["EXISTE_EN_UAT (409)"]
   VerificarUat -->|not exists| InsertUat["INSERT en UAT"]
   InsertUat --> UpdateUat["UPDATE estatus='PENDIENTE' en UAT"]
-  UpdateUat --> ParseMetadata["Parse metadata → metadataParsed"]
+  UpdateUat --> ParseMetadata["Parse metadata -> metadataParsed"]
   ParseMetadata -->|invalid| MetadataInvalid["METADATA_INVALIDA_PARA_API2 (500)"]
   ParseMetadata --> CallAPI["POST /procesanotificacionmercadopago/{brandNumber}"]
   CallAPI -->|error| ApiError["API2_RESPUESTA_NO_OK (502)"]
   CallAPI --> ValidacionesNegocio["Validaciones de negocio (diri_recarga / diri_preventa)"]
   ValidacionesNegocio --> MongoVal["Validar MongoDB (tbl_orders)"]
-  MongoVal --> ConsumoDespues["API detalle consumo (DESPUÉS)"]
-  ConsumoDespues --> ComputeDiff["computeJsonDiff(ANTES,DESPUÉS)"]
+  MongoVal --> ConsumoDespues["API detalle consumo DESPUES"]
+  ConsumoDespues --> ComputeDiff["computeJsonDiff(ANTES,DESPUES)"]
   ComputeDiff --> Response["200: Responder JSON con logs y detalles"]
   NoResults --> ResponseErr1["Responder 404"]
   NoProd --> ResponseErr2["Responder 404"]
@@ -163,8 +163,8 @@ flowchart TD
   ParseMetadataPP --> CallPaypalAPI["POST /paypalwebhook"]
   CallPaypalAPI -->|error| ApiErrorPP["API_PAYPAL_RESPUESTA_NO_OK (502)"]
   CallPaypalAPI --> ValidacionesNegocioPP["Validaciones de negocio + Validar MongoDB"]
-  ValidacionesNegocioPP --> ConsumoDespuesPP["API detalle consumo (DESPUÉS)"]
-  ConsumoDespuesPP --> ComputeDiffPP["computeJsonDiff(ANTES,DESPUÉS)"]
+  ValidacionesNegocioPP --> ConsumoDespuesPP["API detalle consumo DESPUES"]
+  ConsumoDespuesPP --> ComputeDiffPP["computeJsonDiff(ANTES,DESPUES)"]
   ComputeDiffPP --> ResponsePP["200: Responder JSON con logs y detalles"]
   NoProdPP --> ResponseErrPP1["Responder 404"]
   NoProdPP2 --> ResponseErrPP2["Responder 404"]
@@ -209,8 +209,8 @@ flowchart TD
   BuildOpenpay --> CallOpenpay["POST /webhookopenpay"]
   CallOpenpay -->|error| ApiErrorOP["API_OPENPAY_RESPUESTA_NO_OK (502)"]
   CallOpenpay --> ValidacionesNegocioOP["Validaciones de negocio + Validar MongoDB"]
-  ValidacionesNegocioOP --> ConsumoDespuesOP["API detalle consumo (DESPUÉS)"]
-  ConsumoDespuesOP --> ComputeDiffOP["computeJsonDiff(ANTES,DESPUÉS)"]
+  ValidacionesNegocioOP --> ConsumoDespuesOP["API detalle consumo DESPUES"]
+  ConsumoDespuesOP --> ComputeDiffOP["computeJsonDiff(ANTES,DESPUES)"]
   ComputeDiffOP --> ResponseOP["200: Responder JSON con logs y detalles"]
   NoProdOP --> ResponseErrOP1["Responder 404"]
   ExisteUatOP --> ResponseErrOP2["Responder 409"]
@@ -342,7 +342,7 @@ Diagrama de interacción (compare_consumo.html):
 ```mermaid
 flowchart LR
   User["Usuario (UI)"] --> CompareForm["Formulario compare_consumo.html"]
-  CompareForm -->|computeJsonDiff(client)| DiffTable["Tabla de diferencias"]
+  CompareForm -->|"computeJsonDiff(client)"| DiffTable["Tabla de diferencias"]
   DiffTable --> User
 ```
 
