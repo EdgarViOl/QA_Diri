@@ -1,0 +1,211 @@
+===== QA | Simulador de Pagos DIRI - EJECUCIÓN =====
+Fecha/hora servidor (ISO): 2025-12-15T23:47:54.214Z
+
+---- RESUMEN GENERAL ----
+STATUS FINAL: ERROR_API_STRIPE
+MENSAJE: Error al llamar API stripeWebhook.
+HTTP STATUS (si aplica): 500
+
+---- CONTEXTO DE ENTRADA ----
+Folio de compra: turp_1765839920092
+Marca (brandNumber): 5
+DN: 4931485222
+Pasarela: stripe
+Tipo de operación: recarga
+
+---- LOG PASO A PASO ----
+- Recibí folioCompra = turp_1765839920092
+- Marca / brandNumber = 5
+- Pasarela seleccionada = stripe
+- Tipo de operación = recarga
+- DN utilizado = 4931485222
+- Llamando API detalle consumo DN (ANTES_DE_REPROCESO) webresources/consultaConsumo (POST)...
+- API detalle consumo DN (ANTES_DE_REPROCESO) respondió correctamente: HTTP 200.
+- Iniciando flujo Stripe: webhook PROD → UAT → metadata → API stripeWebhook → validaciones.
+- Consultando BD PROD Stripe (diri_webhook_stripe) por folio...
+- Registro Stripe encontrado en PROD.
+- Verificando si ya existe registro Stripe en UAT para ese folio...
+- No existía registro Stripe en UAT; insertando registro en UAT...
+- Registro Stripe insertado en UAT con id = 195462
+- Recuperando registro Stripe desde UAT para obtener metadata después del insert...
+- Metadata obtenida desde registro Stripe en UAT; se intenta parsear como JSON.
+- Metadata Stripe en UAT parseada correctamente como JSON.
+- Llamando API stripeWebhook (POST)...
+- ERROR en llamada a API stripeWebhook: Request failed with status code 500
+
+---- DETALLE CONSUMO DN - ANTES_DE_REPROCESO ----
+{
+  "codRespuesta": "OK",
+  "detalle": "SE PROCESO CON EXITO LA PETICION",
+  "perfilClienteApp": {
+    "lineas": [
+      {
+        "datoslinea": {
+          "dn": "4931485222",
+          "esprincipal": "1",
+          "fechacorte": "NA",
+          "offeridaltan": "1709902170",
+          "plancontratado": "1 Día",
+          "tipo": "prepago",
+          "codigoplanref": "501cd0",
+          "recargaVigente": "NO",
+          "fechasRecarga": {
+            "ultimarecarga": "NA",
+            "vigenciarecarga": "NA"
+          },
+          "nobanda28": "NO",
+          "categoria_plan": "NORMAL"
+        },
+        "subscriber": {
+          "msisdn": "4931485222",
+          "imsi": "334140174495816",
+          "iccid": "8952140062457089469",
+          "imei": "35678411134105",
+          "status": "Active",
+          "product": "Movilidad",
+          "coordinates": ","
+        },
+        "sms": {
+          "disponible": 0,
+          "consumo": 0,
+          "total": 0,
+          "ilimitado": "NO"
+        },
+        "voz": {
+          "disponible": 0,
+          "consumo": 0,
+          "total": 0,
+          "ilimitado": "NO"
+        },
+        "datos": {
+          "disponible": 0,
+          "consumo": 0,
+          "total": 0,
+          "ilimitado": "NO"
+        },
+        "rs": {
+          "disponible": 0,
+          "consumo": 0,
+          "total": 0,
+          "ilimitado": "NO"
+        },
+        "throttlin": {
+          "disponible": 0,
+          "consumo": 0,
+          "total": 0,
+          "ilimitado": "NO"
+        }
+      }
+    ],
+    "fallaAltan": false
+  }
+}
+
+---- DETALLE CONSUMO DN - DESPUES_DE_REPROCESO ----
+null
+
+---- DIFERENCIAS DETALLE CONSUMO (ANTES vs DESPUES) ----
+Sin diferencias o no se pudo calcular diff.
+
+---- DETALLE STRIPE ----
+>>> Registro PROD (diri_webhook_stripe):
+{
+  "id": 195462,
+  "folio": "turp_1765839920092",
+  "payment_id": "pm_1SekpPJuQOLfkk3uw9bqSPGR",
+  "oder_id": "",
+  "tipo": "payment_intent.succeeded",
+  "metadata": "{\n  \"id\": \"evt_3SekpQJuQOLfkk3u1j1H673N\",\n  \"object\": \"event\",\n  \"api_version\": \"2025-09-30.clover\",\n  \"created\": 1765839922,\n  \"data\": {\n    \"object\": {\n      \"id\": \"pi_3SekpQJuQOLfkk3u1GlgxLMM\",\n      \"object\": \"payment_intent\",\n      \"amount\": 8000,\n      \"amount_capturable\": 0,\n      \"amount_details\": {\n        \"tip\": {}\n      },\n      \"amount_received\": 8000,\n      \"application\": null,\n      \"application_fee_amount\": null,\n      \"automatic_payment_methods\": {\n        \"allow_redirects\": \"always\",\n        \"enabled\": true\n      },\n      \"canceled_at\": null,\n      \"cancellation_reason\": null,\n      \"capture_method\": \"automatic\",\n      \"client_secret\": \"pi_3SekpQJuQOLfkk3u1GlgxLMM_secret_PWl1m5BUhaebZeJTpu2xf8nAh\",\n      \"confirmation_method\": \"automatic\",\n      \"created\": 1765839920,\n      \"currency\": \"mxn\",\n      \"customer\": null,\n      \"customer_account\": null,\n      \"description\": \"Recarga de plan\",\n      \"excluded_payment_method_types\": null,\n      \"last_payment_error\": null,\n      \"latest_charge\": \"ch_3SekpQJuQOLfkk3u1qyXpZK6\",\n      \"livemode\": true,\n      \"metadata\": {\n        \"descuento_porcentual\": \"0.0\",\n        \"folio\": \"turp_1765839920092\",\n        \"descuento_neto\": \"0.0\"\n      },\n      \"next_action\": null,\n      \"on_behalf_of\": null,\n      \"payment_method\": \"pm_1SekpPJuQOLfkk3uw9bqSPGR\",\n      \"payment_method_configuration_details\": {\n        \"id\": \"pmc_1SHx9PJuQOLfkk3uEkrCQZFM\",\n        \"parent\": null\n      },\n      \"payment_method_options\": {\n        \"card\": {\n          \"installments\": {\n            \"available_plans\": [],\n            \"enabled\": false,\n            \"plan\": null\n          },\n          \"mandate_options\": null,\n          \"network\": null,\n          \"request_three_d_secure\": \"automatic\"\n        },\n        \"link\": {\n          \"persistent_token\": null\n        }\n      },\n      \"payment_method_types\": [\n        \"card\",\n        \"link\"\n      ],\n      \"processing\": null,\n      \"receipt_email\": null,\n      \"review\": null,\n      \"setup_future_usage\": null,\n      \"shipping\": null,\n      \"source\": null,\n      \"statement_descriptor\": null,\n      \"statement_descriptor_suffix\": null,\n      \"status\": \"succeeded\",\n      \"transfer_data\": null,\n      \"transfer_group\": null\n    }\n  },\n  \"livemode\": true,\n  \"pending_webhooks\": 1,\n  \"request\": {\n    \"id\": \"req_WyUFxf6lbfKV6F\",\n    \"idempotency_key\": \"8495e5e8-c72a-448e-a5aa-116e65c34f17\"\n  },\n  \"type\": \"payment_intent.succeeded\"\n}",
+  "respuesta": "{\n  \"id\": \"evt_3SekpQJuQOLfkk3u1j1H673N\",\n  \"object\": \"event\",\n  \"api_version\": \"2025-09-30.clover\",\n  \"created\": 1765839922,\n  \"data\": {\n    \"object\": {\n      \"id\": \"pi_3SekpQJuQOLfkk3u1GlgxLMM\",\n      \"object\": \"payment_intent\",\n      \"amount\": 8000,\n      \"amount_capturable\": 0,\n      \"amount_details\": {\n        \"tip\": {}\n      },\n      \"amount_received\": 8000,\n      \"application\": null,\n      \"application_fee_amount\": null,\n      \"automatic_payment_methods\": {\n        \"allow_redirects\": \"always\",\n        \"enabled\": true\n      },\n      \"canceled_at\": null,\n      \"cancellation_reason\": null,\n      \"capture_method\": \"automatic\",\n      \"client_secret\": \"pi_3SekpQJuQOLfkk3u1GlgxLMM_secret_PWl1m5BUhaebZeJTpu2xf8nAh\",\n      \"confirmation_method\": \"automatic\",\n      \"created\": 1765839920,\n      \"currency\": \"mxn\",\n      \"customer\": null,\n      \"customer_account\": null,\n      \"description\": \"Recarga de plan\",\n      \"excluded_payment_method_types\": null,\n      \"last_payment_error\": null,\n      \"latest_charge\": \"ch_3SekpQJuQOLfkk3u1qyXpZK6\",\n      \"livemode\": true,\n      \"metadata\": {\n        \"descuento_porcentual\": \"0.0\",\n        \"folio\": \"turp_1765839920092\",\n        \"descuento_neto\": \"0.0\"\n      },\n      \"next_action\": null,\n      \"on_behalf_of\": null,\n      \"payment_method\": \"pm_1SekpPJuQOLfkk3uw9bqSPGR\",\n      \"payment_method_configuration_details\": {\n        \"id\": \"pmc_1SHx9PJuQOLfkk3uEkrCQZFM\",\n        \"parent\": null\n      },\n      \"payment_method_options\": {\n        \"card\": {\n          \"installments\": {\n            \"available_plans\": [],\n            \"enabled\": false,\n            \"plan\": null\n          },\n          \"mandate_options\": null,\n          \"network\": null,\n          \"request_three_d_secure\": \"automatic\"\n        },\n        \"link\": {\n          \"persistent_token\": null\n        }\n      },\n      \"payment_method_types\": [\n        \"card\",\n        \"link\"\n      ],\n      \"processing\": null,\n      \"receipt_email\": null,\n      \"review\": null,\n      \"setup_future_usage\": null,\n      \"shipping\": null,\n      \"source\": null,\n      \"statement_descriptor\": null,\n      \"statement_descriptor_suffix\": null,\n      \"status\": \"succeeded\",\n      \"transfer_data\": null,\n      \"transfer_group\": null\n    }\n  },\n  \"livemode\": true,\n  \"pending_webhooks\": 1,\n  \"request\": {\n    \"id\": \"req_WyUFxf6lbfKV6F\",\n    \"idempotency_key\": \"8495e5e8-c72a-448e-a5aa-116e65c34f17\"\n  },\n  \"type\": \"payment_intent.succeeded\"\n}",
+  "fecha_registro": "2025-12-15T23:05:22.000Z"
+}
+>>> Metadata Raw Stripe:
+"{\n  \"id\": \"evt_3SekpQJuQOLfkk3u1j1H673N\",\n  \"object\": \"event\",\n  \"api_version\": \"2025-09-30.clover\",\n  \"created\": 1765839922,\n  \"data\": {\n    \"object\": {\n      \"id\": \"pi_3SekpQJuQOLfkk3u1GlgxLMM\",\n      \"object\": \"payment_intent\",\n      \"amount\": 8000,\n      \"amount_capturable\": 0,\n      \"amount_details\": {\n        \"tip\": {}\n      },\n      \"amount_received\": 8000,\n      \"application\": null,\n      \"application_fee_amount\": null,\n      \"automatic_payment_methods\": {\n        \"allow_redirects\": \"always\",\n        \"enabled\": true\n      },\n      \"canceled_at\": null,\n      \"cancellation_reason\": null,\n      \"capture_method\": \"automatic\",\n      \"client_secret\": \"pi_3SekpQJuQOLfkk3u1GlgxLMM_secret_PWl1m5BUhaebZeJTpu2xf8nAh\",\n      \"confirmation_method\": \"automatic\",\n      \"created\": 1765839920,\n      \"currency\": \"mxn\",\n      \"customer\": null,\n      \"customer_account\": null,\n      \"description\": \"Recarga de plan\",\n      \"excluded_payment_method_types\": null,\n      \"last_payment_error\": null,\n      \"latest_charge\": \"ch_3SekpQJuQOLfkk3u1qyXpZK6\",\n      \"livemode\": true,\n      \"metadata\": {\n        \"descuento_porcentual\": \"0.0\",\n        \"folio\": \"turp_1765839920092\",\n        \"descuento_neto\": \"0.0\"\n      },\n      \"next_action\": null,\n      \"on_behalf_of\": null,\n      \"payment_method\": \"pm_1SekpPJuQOLfkk3uw9bqSPGR\",\n      \"payment_method_configuration_details\": {\n        \"id\": \"pmc_1SHx9PJuQOLfkk3uEkrCQZFM\",\n        \"parent\": null\n      },\n      \"payment_method_options\": {\n        \"card\": {\n          \"installments\": {\n            \"available_plans\": [],\n            \"enabled\": false,\n            \"plan\": null\n          },\n          \"mandate_options\": null,\n          \"network\": null,\n          \"request_three_d_secure\": \"automatic\"\n        },\n        \"link\": {\n          \"persistent_token\": null\n        }\n      },\n      \"payment_method_types\": [\n        \"card\",\n        \"link\"\n      ],\n      \"processing\": null,\n      \"receipt_email\": null,\n      \"review\": null,\n      \"setup_future_usage\": null,\n      \"shipping\": null,\n      \"source\": null,\n      \"statement_descriptor\": null,\n      \"statement_descriptor_suffix\": null,\n      \"status\": \"succeeded\",\n      \"transfer_data\": null,\n      \"transfer_group\": null\n    }\n  },\n  \"livemode\": true,\n  \"pending_webhooks\": 1,\n  \"request\": {\n    \"id\": \"req_WyUFxf6lbfKV6F\",\n    \"idempotency_key\": \"8495e5e8-c72a-448e-a5aa-116e65c34f17\"\n  },\n  \"type\": \"payment_intent.succeeded\"\n}"
+>>> Metadata Parseada Stripe:
+{
+  "id": "evt_3SekpQJuQOLfkk3u1j1H673N",
+  "object": "event",
+  "api_version": "2025-09-30.clover",
+  "created": 1765839922,
+  "data": {
+    "object": {
+      "id": "pi_3SekpQJuQOLfkk3u1GlgxLMM",
+      "object": "payment_intent",
+      "amount": 8000,
+      "amount_capturable": 0,
+      "amount_details": {
+        "tip": {}
+      },
+      "amount_received": 8000,
+      "application": null,
+      "application_fee_amount": null,
+      "automatic_payment_methods": {
+        "allow_redirects": "always",
+        "enabled": true
+      },
+      "canceled_at": null,
+      "cancellation_reason": null,
+      "capture_method": "automatic",
+      "client_secret": "pi_3SekpQJuQOLfkk3u1GlgxLMM_secret_PWl1m5BUhaebZeJTpu2xf8nAh",
+      "confirmation_method": "automatic",
+      "created": 1765839920,
+      "currency": "mxn",
+      "customer": null,
+      "customer_account": null,
+      "description": "Recarga de plan",
+      "excluded_payment_method_types": null,
+      "last_payment_error": null,
+      "latest_charge": "ch_3SekpQJuQOLfkk3u1qyXpZK6",
+      "livemode": true,
+      "metadata": {
+        "descuento_porcentual": "0.0",
+        "folio": "turp_1765839920092",
+        "descuento_neto": "0.0"
+      },
+      "next_action": null,
+      "on_behalf_of": null,
+      "payment_method": "pm_1SekpPJuQOLfkk3uw9bqSPGR",
+      "payment_method_configuration_details": {
+        "id": "pmc_1SHx9PJuQOLfkk3uEkrCQZFM",
+        "parent": null
+      },
+      "payment_method_options": {
+        "card": {
+          "installments": {
+            "available_plans": [],
+            "enabled": false,
+            "plan": null
+          },
+          "mandate_options": null,
+          "network": null,
+          "request_three_d_secure": "automatic"
+        },
+        "link": {
+          "persistent_token": null
+        }
+      },
+      "payment_method_types": [
+        "card",
+        "link"
+      ],
+      "processing": null,
+      "receipt_email": null,
+      "review": null,
+      "setup_future_usage": null,
+      "shipping": null,
+      "source": null,
+      "statement_descriptor": null,
+      "statement_descriptor_suffix": null,
+      "status": "succeeded",
+      "transfer_data": null,
+      "transfer_group": null
+    }
+  },
+  "livemode": true,
+  "pending_webhooks": 1,
+  "request": {
+    "id": "req_WyUFxf6lbfKV6F",
+    "idempotency_key": "8495e5e8-c72a-448e-a5aa-116e65c34f17"
+  },
+  "type": "payment_intent.succeeded"
+}

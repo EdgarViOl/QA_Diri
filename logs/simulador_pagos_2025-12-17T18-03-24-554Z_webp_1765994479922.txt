@@ -1,0 +1,363 @@
+===== QA | Simulador de Pagos DIRI - EJECUCIÓN =====
+Fecha/hora servidor (ISO): 2025-12-17T18:03:24.554Z
+
+---- RESUMEN GENERAL ----
+STATUS FINAL: OK
+MENSAJE: Flujo MercadoPago ejecutado → Folio Mercado obtenido → Registro encontrado en PROD → Insertado en UAT → Estatus actualizado a 'PENDIENTE' → Metadata de UAT preparada → Notificación procesada por API procesanotificacionmercadopago → Validación en tablas de negocio UAT y en MongoDB.
+
+---- CONTEXTO DE ENTRADA ----
+Folio de compra: webp_1765994479922
+Marca (brandNumber): 1
+DN: 5654903677
+Pasarela: mercadopago
+Tipo de operación: recarga
+Folio MercadoPago: 138312702312
+
+---- LOG PASO A PASO ----
+- Recibí folioCompra = webp_1765994479922
+- Marca / brandNumber = 1
+- Pasarela seleccionada = mercadopago
+- Tipo de operación = recarga
+- DN utilizado = 5654903677
+- Llamando API detalle consumo DN (ANTES_DE_REPROCESO) webresources/consultaConsumo (POST)...
+- API detalle consumo DN (ANTES_DE_REPROCESO) respondió correctamente: HTTP 200.
+- Llamando API MercadoPago v1/payments/search (GET) con external_reference = folioCompra...
+- API MercadoPago v1/payments/search respondió correctamente.
+- Folio de MercadoPago obtenido del primer pago = 138312702312
+- Consultando BD PROD (diri_webhook_mercadopago) con folio_mercadopago...
+- Registro encontrado en PROD (diri_webhook_mercadopago).
+- Verificando si ya existe registro en UAT (diri_webhook_mercadopago) para ese folio_mercadopago...
+- No existía registro en UAT; insertando registro en UAT (diri_webhook_mercadopago)...
+- Registro insertado en UAT con id = 20657865
+- Actualizando estatus en UAT a 'PENDIENTE' para ese folio_mercadopago...
+- Estatus actualizado a 'PENDIENTE' en UAT para ese folio_mercadopago (affectedRows = 1).
+- Metadata obtenida desde registroProd; lista para usar en API procesanotificacionmercadopago.
+- Metadata parseada correctamente como JSON.
+- Llamando API procesanotificacionmercadopago (POST) para marca 1...
+- API procesanotificacionmercadopago respondió con status HTTP 200, codRespuesta = OK, detalle = SE PROCESO CON EXITO LA PETICION
+- API procesanotificacionmercadopago procesó la notificación con éxito (codRespuesta OK).
+- Validando en tabla de negocio UAT: diriprod.diri_recarga (recarga, estatus OK/PAGADO)...
+- Recarga en UAT encontrada con estatus exitoso (OK) para ese folio.
+- Validando folioCompra en MongoDB ECOMMERCEDB.tbl_orders por patrón en _id...
+- Orden encontrada en MongoDB para ese folioCompra.
+- Estado en MongoDB considerado exitoso (PAID) para ese folio.
+- Llamando API detalle consumo DN (DESPUES_DE_REPROCESO) webresources/consultaConsumo (POST)...
+- API detalle consumo DN (DESPUES_DE_REPROCESO) respondió correctamente: HTTP 200.
+- Se detectaron 15 diferencias en la respuesta de detalle consumo DN entre ANTES y DESPUES del reproceso.
+
+---- DETALLE CONSUMO DN - ANTES_DE_REPROCESO ----
+{
+  "codRespuesta": "OK",
+  "detalle": "SE PROCESO CON EXITO LA PETICION",
+  "perfilClienteApp": {
+    "lineas": [
+      {
+        "datoslinea": {
+          "dn": "5654903677",
+          "esprincipal": "1",
+          "fechacorte": "07-01-2026",
+          "offeridaltan": "1809906128",
+          "plancontratado": "Explora Anual",
+          "tipo": "prepago",
+          "codigoplanref": "8eae4e",
+          "recargaVigente": "SI",
+          "fechasRecarga": {
+            "ultimarecarga": "2025-12-07 12:00:00",
+            "vigenciarecarga": "2026-01-07 12:00:00"
+          },
+          "nobanda28": "NO",
+          "categoria_plan": "ANUAL",
+          "fecha_inicio": "2025-10-06 17:48:04",
+          "fecha_renovacion": "2026-10-06 17:48:04",
+          "mesesRestantesAnual": 10
+        },
+        "subscriber": {
+          "msisdn": "5654903677",
+          "imsi": "334140179329281",
+          "iccid": "8952140062587578886",
+          "imei": "",
+          "status": "Active",
+          "product": "Movilidad",
+          "coordinates": ","
+        },
+        "sms": {
+          "disponible": 1750,
+          "consumo": 0,
+          "total": 1750,
+          "ilimitado": "SI"
+        },
+        "voz": {
+          "disponible": 45450,
+          "consumo": 0,
+          "total": 45450,
+          "ilimitado": "SI"
+        },
+        "datos": {
+          "disponible": 4.1,
+          "consumo": 0,
+          "total": 4.1,
+          "ilimitado": "NO"
+        },
+        "rs": {
+          "disponible": 105.4,
+          "consumo": 0,
+          "total": 105.4,
+          "ilimitado": "SI"
+        },
+        "throttlin": {
+          "disponible": 0,
+          "consumo": 0,
+          "total": 0,
+          "ilimitado": "NO"
+        }
+      }
+    ],
+    "fallaAltan": false
+  }
+}
+
+---- DETALLE CONSUMO DN - DESPUES_DE_REPROCESO ----
+{
+  "codRespuesta": "OK",
+  "detalle": "SE PROCESO CON EXITO LA PETICION",
+  "perfilClienteApp": {
+    "lineas": [
+      {
+        "datoslinea": {
+          "dn": "5654903677",
+          "esprincipal": "1",
+          "fechacorte": "24-12-2025",
+          "offeridaltan": "1809906113",
+          "plancontratado": "Conecta",
+          "tipo": "prepago",
+          "codigoplanref": "8eae4e",
+          "recargaVigente": "SI",
+          "fechasRecarga": {
+            "ultimarecarga": "2025-12-07 12:00:00",
+            "vigenciarecarga": "2026-01-07 12:00:00"
+          },
+          "nobanda28": "NO",
+          "categoria_plan": "NORMAL"
+        },
+        "subscriber": {
+          "msisdn": "5654903677",
+          "imsi": "334140179329281",
+          "iccid": "8952140062587578886",
+          "imei": "",
+          "status": "Active",
+          "product": "Movilidad",
+          "coordinates": ","
+        },
+        "sms": {
+          "disponible": 2625,
+          "consumo": 0,
+          "total": 2625,
+          "ilimitado": "SI"
+        },
+        "voz": {
+          "disponible": 56280,
+          "consumo": 0,
+          "total": 56280,
+          "ilimitado": "SI"
+        },
+        "datos": {
+          "disponible": 10.3,
+          "consumo": 0,
+          "total": 10.3,
+          "ilimitado": "NO"
+        },
+        "rs": {
+          "disponible": 208.5,
+          "consumo": 0,
+          "total": 208.5,
+          "ilimitado": "SI"
+        },
+        "throttlin": {
+          "disponible": 0,
+          "consumo": 0,
+          "total": 0,
+          "ilimitado": "NO"
+        }
+      }
+    ],
+    "fallaAltan": false
+  }
+}
+
+---- DIFERENCIAS DETALLE CONSUMO (ANTES vs DESPUES) ----
+[
+  {
+    "path": "perfilClienteApp.lineas[0].datoslinea.fechacorte",
+    "antes": "07-01-2026",
+    "despues": "24-12-2025"
+  },
+  {
+    "path": "perfilClienteApp.lineas[0].datoslinea.offeridaltan",
+    "antes": "1809906128",
+    "despues": "1809906113"
+  },
+  {
+    "path": "perfilClienteApp.lineas[0].datoslinea.plancontratado",
+    "antes": "Explora Anual",
+    "despues": "Conecta"
+  },
+  {
+    "path": "perfilClienteApp.lineas[0].datoslinea.categoria_plan",
+    "antes": "ANUAL",
+    "despues": "NORMAL"
+  },
+  {
+    "path": "perfilClienteApp.lineas[0].datoslinea.fecha_inicio",
+    "antes": "2025-10-06 17:48:04"
+  },
+  {
+    "path": "perfilClienteApp.lineas[0].datoslinea.fecha_renovacion",
+    "antes": "2026-10-06 17:48:04"
+  },
+  {
+    "path": "perfilClienteApp.lineas[0].datoslinea.mesesRestantesAnual",
+    "antes": 10
+  },
+  {
+    "path": "perfilClienteApp.lineas[0].sms.disponible",
+    "antes": 1750,
+    "despues": 2625
+  },
+  {
+    "path": "perfilClienteApp.lineas[0].sms.total",
+    "antes": 1750,
+    "despues": 2625
+  },
+  {
+    "path": "perfilClienteApp.lineas[0].voz.disponible",
+    "antes": 45450,
+    "despues": 56280
+  },
+  {
+    "path": "perfilClienteApp.lineas[0].voz.total",
+    "antes": 45450,
+    "despues": 56280
+  },
+  {
+    "path": "perfilClienteApp.lineas[0].datos.disponible",
+    "antes": 4.1,
+    "despues": 10.3
+  },
+  {
+    "path": "perfilClienteApp.lineas[0].datos.total",
+    "antes": 4.1,
+    "despues": 10.3
+  },
+  {
+    "path": "perfilClienteApp.lineas[0].rs.disponible",
+    "antes": 105.4,
+    "despues": 208.5
+  },
+  {
+    "path": "perfilClienteApp.lineas[0].rs.total",
+    "antes": 105.4,
+    "despues": 208.5
+  }
+]
+
+---- DETALLE MERCADOPAGO ----
+>>> Registro PROD (diri_webhook_mercadopago):
+{
+  "id": 20657865,
+  "id_mercadopago": "127273303521",
+  "folio_mercadopago": "138312702312",
+  "tipo": "payment",
+  "accion": "payment.created",
+  "metadata": "{\"action\":\"payment.created\",\"api_version\":\"v1\",\"data\":{\"id\":\"138312702312\"},\"date_created\":\"2025-12-17T18:01:21Z\",\"id\":127273303521,\"live_mode\":true,\"type\":\"payment\",\"user_id\":\"669403414\"}",
+  "fecha_registro": "2025-12-17T18:01:23.000Z",
+  "folio": "webp_1765994479922",
+  "request": "https://api.mercadopago.com/v1/payments/138312702312",
+  "response": "{\"accounts_info\":null,\"acquirer_reconciliation\":[],\"additional_info\":{\"items\":[{\"category_id\":\"others\",\"description\":\"Recarga plan Conecta\",\"id\":\"1809906113\",\"quantity\":\"1\",\"title\":\"Conecta\",\"unit_price\":\"89.0\"}],\"payer\":{\"phone\":{\"number\":\"5654903677\"}},\"tracking_id\":\"platform:v1-whitelabel,so:ALL,type:N/A,security:none\"},\"authorization_code\":\"080561\",\"binary_mode\":true,\"brand_id\":null,\"build_version\":\"3.135.0-rc-1\",\"call_for_authorize_id\":null,\"captured\":true,\"card\":{\"bin\":\"514509\",\"cardholder\":{\"identification\":{\"number\":null,\"type\":null},\"name\":\"Edgar Villegas Olvera\"},\"country\":\"MEX\",\"date_created\":\"2025-12-17T14:01:21.000-04:00\",\"date_last_updated\":\"2025-12-17T14:01:21.000-04:00\",\"expiration_month\":11,\"expiration_year\":2033,\"first_six_digits\":\"514509\",\"id\":\"9715925354\",\"last_four_digits\":\"6421\",\"tags\":[\"credit\"]},\"charges_details\":[{\"accounts\":{\"from\":\"collector\",\"to\":\"mp\"},\"amounts\":{\"original\":2.54,\"refunded\":0},\"client_id\":0,\"date_created\":\"2025-12-17T14:01:21.000-04:00\",\"external_charge_id\":\"01KCPQJHHAC22NK62BAQ8AXV36\",\"id\":\"138312702312-001\",\"last_updated\":\"2025-12-17T14:01:21.000-04:00\",\"metadata\":{\"reason\":\"\",\"source\":\"proc-svc-charges\",\"source_detail\":\"processing_fee_charge\"},\"name\":\"mercadopago_fee\",\"refund_charges\":[],\"reserve_id\":null,\"type\":\"fee\"}],\"charges_execution_info\":{\"internal_execution\":{\"date\":\"2025-12-17T14:01:21.204-04:00\",\"execution_id\":\"01KCPQJHGDXJ8JFK5228CD48YA\"}},\"collector_id\":669403414,\"corporation_id\":null,\"counter_currency\":null,\"coupon_amount\":0,\"currency_id\":\"MXN\",\"date_approved\":\"2025-12-17T14:01:23.000-04:00\",\"date_created\":\"2025-12-17T14:01:21.000-04:00\",\"date_last_updated\":\"2025-12-17T14:01:30.000-04:00\",\"date_of_expiration\":null,\"deduction_schema\":null,\"description\":\"Recarga plan Conecta\",\"differential_pricing_id\":null,\"external_reference\":\"webp_1765994479922\",\"fee_details\":[{\"amount\":2.54,\"fee_payer\":\"collector\",\"type\":\"mercadopago_fee\"}],\"financing_group\":null,\"id\":138312702312,\"installments\":1,\"integrator_id\":null,\"issuer_id\":\"162\",\"live_mode\":true,\"marketplace_owner\":null,\"merchant_account_id\":null,\"merchant_number\":null,\"metadata\":{},\"money_release_date\":\"2025-12-17T14:01:23.000-04:00\",\"money_release_schema\":null,\"money_release_status\":\"released\",\"notification_url\":\"https://serviciosweb.diri.mx/webresources/mercadopagowebhook2/1\",\"operation_type\":\"recurring_payment\",\"order\":{},\"payer\":{\"email\":\"testing@diri.mx\",\"entity_type\":null,\"first_name\":null,\"id\":\"2930218872-yxmHsFDazIKEBg\",\"identification\":{\"number\":null,\"type\":null},\"last_name\":null,\"operator_id\":null,\"phone\":{\"number\":null,\"extension\":null,\"area_code\":null},\"type\":null},\"payment_method\":{\"data\":{\"routing_data\":{\"merchant_account_id\":\"140\"}},\"id\":\"master\",\"issuer_id\":\"162\",\"type\":\"credit_card\"},\"payment_method_id\":\"master\",\"payment_type_id\":\"credit_card\",\"platform_id\":null,\"point_of_interaction\":{\"business_info\":{\"branch\":\"Merchant Services\",\"sub_unit\":\"preapproval\",\"unit\":\"online_payments\"},\"transaction_data\":{\"ticket_id\":\"55860755585_377b6577757b7d337775_P\"},\"type\":\"UNSPECIFIED\"},\"pos_id\":null,\"processing_mode\":\"aggregator\",\"refunds\":[],\"release_info\":null,\"shipping_amount\":0,\"sponsor_id\":null,\"statement_descriptor\":\"MERCADOPAGO *DIRIMOVI\",\"status\":\"approved\",\"status_detail\":\"accredited\",\"store_id\":null,\"tags\":null,\"taxes_amount\":0,\"transaction_amount\":89,\"transaction_amount_refunded\":0,\"transaction_details\":{\"acquirer_reference\":null,\"external_resource_url\":null,\"financial_institution\":null,\"installment_amount\":89,\"net_received_amount\":86.46,\"overpaid_amount\":0,\"payable_deferral_period\":null,\"payment_method_reference_id\":null,\"total_paid_amount\":89}}",
+  "tipo_diri": "",
+  "estatus": "fallido",
+  "fecha_actualiza": "2025-12-17T18:02:32.000Z"
+}
+>>> Resultado insert/estatus en UAT (MercadoPago):
+{
+  "insertId": 20657865,
+  "affectedRows": 1
+}
+>>> Metadata Raw (MercadoPago):
+"{\"action\":\"payment.created\",\"api_version\":\"v1\",\"data\":{\"id\":\"138312702312\"},\"date_created\":\"2025-12-17T18:01:21Z\",\"id\":127273303521,\"live_mode\":true,\"type\":\"payment\",\"user_id\":\"669403414\"}"
+>>> Metadata Parseada (MercadoPago):
+{
+  "action": "payment.created",
+  "api_version": "v1",
+  "data": {
+    "id": "138312702312"
+  },
+  "date_created": "2025-12-17T18:01:21Z",
+  "id": 127273303521,
+  "live_mode": true,
+  "type": "payment",
+  "user_id": "669403414"
+}
+>>> Respuesta API procesanotificacionmercadopago:
+{
+  "codRespuesta": "OK",
+  "detalle": "SE PROCESO CON EXITO LA PETICION"
+}
+
+---- MONGODB ECOMMERCEDB.tbl_orders ----
+Orden encontrada: Sí
+{
+  "_id": "webp_1765994479922",
+  "customer": {
+    "name": "test",
+    "surname_first": "test",
+    "surname_second": "",
+    "email": "testing@diri.mx",
+    "phone": "5654903677",
+    "birth_date": "",
+    "nacionality": "",
+    "gender": "",
+    "identifier_type": "",
+    "identifier_number": "",
+    "phone_cell": "5654903677",
+    "phone_home": "5654903677",
+    "phone_bussines": "5654903677"
+  },
+  "shipping_address": {
+    "street": "Av. Santa Fe",
+    "num_ext": "428",
+    "num_int": "Torre 3 Pido 23",
+    "postal_code": "05300",
+    "neighborhood": "",
+    "crosstreet": "",
+    "reference": "1809906113"
+  },
+  "products": [
+    {
+      "name": "Conecta",
+      "referencia": "DIRI-RM-CT-CS-10080-500-250MI-4915-1229M-750-125SMS-102400-700RS-168H",
+      "phone_number": "5654903677",
+      "portable": false,
+      "portability_nip": "",
+      "import": 89,
+      "locked_hours": 72,
+      "payment_form": "mercadopago",
+      "quotas_number": 1
+    }
+  ],
+  "created_date": "1711588649490",
+  "status": "PAID",
+  "expiration_date": "2024-03-28 17:04:22",
+  "ip": "0:0:0:0:0:0:0:1",
+  "link": "https://confirma.diri.mx/order?folio=webp_1765994479922",
+  "imei": "NA",
+  "notify": "mail",
+  "channel": "app",
+  "oxxo_reference": "MERCADOPAGO",
+  "oxxo_barcode": "",
+  "oxxo_barcode_url": "",
+  "processed": true,
+  "fulfilled": true,
+  "delivered": true,
+  "process_date": "fulfilled",
+  "_class": "com.diri.orders.model.Order"
+}

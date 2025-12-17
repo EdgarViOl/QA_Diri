@@ -4,7 +4,7 @@
  * 
  * Este servidor proporciona un endpoint principal (/run-flow) que simula
  * el reproceso de notificaciones de pagos desde múltiples pasarelas
- * (MercadoPago, PayPal, OpenPay) en un ambiente de pruebas (UAT).
+ * (MercadoPago, PayPal, OpenPay, Stripe) en un ambiente de pruebas (UAT).
  * 
  * Flujo típico:
  * 1. Buscar el pago en PROD usando criterios específicos por pasarela
@@ -82,6 +82,20 @@ const API_PAYPAL_WEBHOOK_HEADERS = {
 };
 
 /**
+ * ===================== CONFIGURACIÓN API STRIPE WEBHOOK =====================
+ * 
+ * API interna de DIRI que procesa webhooks/notificaciones de Stripe.
+ * Se utiliza para reprocesar eventos de pago completado.
+ */
+
+const API_STRIPE_WEBHOOK_URL =
+  "https://uatserviciosweb.diri.mx/webresources/stripeWebhook";
+
+const API_STRIPE_WEBHOOK_HEADERS = {
+  Authorization: "Bearer 123dagrtetad34gGDs!",
+};
+
+/**
  * ===================== CONFIGURACIÓN API OPENPAY WEBHOOK =====================
  * 
  * API interna de DIRI que procesa webhooks/notificaciones de OpenPay.
@@ -126,6 +140,10 @@ const UAT_MP_TABLE = "diriprod.diri_webhook_mercadopago";
 const PROD_PAYPAL_TABLE = "diriprod.diri_webhook_paypal";
 const UAT_PAYPAL_TABLE = "diriprod.diri_webhook_paypal";
 
+// Tablas webhook para Stripe en PROD y UAT
+const PROD_STRIPE_TABLE = "diriprod.diri_webhook_stripe";
+const UAT_STRIPE_TABLE = "diriprod.diri_webhook_stripe";
+
 // Tablas webhook para OpenPay en PROD y UAT
 const PROD_OPENPAY_TABLE = "diriprod.diri_webhook_openpay";
 const UAT_OPENPAY_TABLE = "diriprod.diri_webhook_openpay";
@@ -140,6 +158,7 @@ const SQL_QUERY_TIMEOUT_MS = 650000;
 // Timeouts para las APIs internas (15 segundos cada una)
 const API2_TIMEOUT_MS = 15000;                      // procesanotificacionmercadopago
 const API_PAYPAL_TIMEOUT_MS = 15000;                // paypalwebhook
+const API_STRIPE_TIMEOUT_MS = 15000;                // stripeWebhook
 const API_OPENPAY_TIMEOUT_MS = 15000;               // webhookopenpay
 const API_DETALLE_CONSUMO_TIMEOUT_MS = 15000;       // consultaConsumo
 
@@ -205,19 +224,24 @@ async function writeExecutionReportToFile(payload) {
       registroProd,
       registroProdPaypal,
       registroProdOpenpay,
+      registroProdStripe,
       registroUatInsertMeta,
       registroUatInsertMetaPaypal,
       registroUatInsertOpenpay,
+      registroUatInsertStripe,
       metadataRaw,
       metadataParsed,
       metadataRawPaypal,
       metadataParsedPaypal,
       metadataRawOpenpay,
       metadataParsedOpenpay,
+      metadataRawStripe,
+      metadataParsedStripe,
       api1Response,
       api2Response,
       apiPaypalResponse,
       apiOpenpayResponse,
+      apiStripeResponse,
       openpayApi4Body,
       mongoOrderFound,
       mongoOrder,
@@ -404,6 +428,38 @@ async function writeExecutionReportToFile(payload) {
       lines.push("");
     }
 
+    // SECCIÓN STRIPE
+    if (
+      registroProdStripe !== undefined ||
+      registroUatInsertStripe !== undefined ||
+      metadataRawStripe !== undefined ||
+      metadataParsedStripe !== undefined ||
+      apiStripeResponse !== undefined
+    ) {
+      lines.push("---- DETALLE STRIPE ----");
+      if (registroProdStripe !== undefined) {
+        lines.push(">>> Registro PROD (diri_webhook_stripe):");
+        lines.push(safeJson(registroProdStripe));
+      }
+      if (registroUatInsertStripe !== undefined) {
+        lines.push(">>> Resultado insert en UAT (Stripe):");
+        lines.push(safeJson(registroUatInsertStripe));
+      }
+      if (metadataRawStripe !== undefined) {
+        lines.push(">>> Metadata Raw Stripe:");
+        lines.push(safeJson(metadataRawStripe));
+      }
+      if (metadataParsedStripe !== undefined) {
+        lines.push(">>> Metadata Parseada Stripe:");
+        lines.push(safeJson(metadataParsedStripe));
+      }
+      if (apiStripeResponse !== undefined) {
+        lines.push(">>> Respuesta API stripeWebhook (si aplica):");
+        lines.push(safeJson(apiStripeResponse));
+      }
+      lines.push("");
+    }
+
     // SECCIÓN MONGODB
     if (mongoOrderFound !== undefined || mongoOrder !== undefined) {
       lines.push("---- MONGODB ECOMMERCEDB.tbl_orders ----");
@@ -507,7 +563,7 @@ async function sendJsonWithReport(res, httpStatus, payload) {
  * BODY ESPERADO (JSON):
  *   - folioCompra (string, required): Identificador único de la orden
  *   - brandNumber (string, optional): Marca/línea de negocio (requerido para MercadoPago)
- *   - gateway (string, optional): Pasarela de pago ('mercadopago', 'paypal', 'openpay')
+ *   - gateway (string, optional): Pasarela de pago ('mercadopago', 'paypal', 'openpay', 'stripe')
  *   - tipoOperacion (string, optional): Tipo de operación ('recarga', 'compra')
  *   - purchaseDate (string, optional): Fecha en formato YYYY-MM-DD (requerido para PayPal)
  *   - dn (string, required): Número de teléfono (10 dígitos) para consulta de consumo
@@ -2150,14 +2206,382 @@ app.post("/run-flow", async (req, res) => {
       });
     }
 
-    // Pasarelas aún no implementadas (por ejemplo, stripe).
+    if (gw === "stripe") {
+      // --------------------- FLUJO STRIPE ---------------------
+
+      log.push(
+        "Iniciando flujo Stripe: webhook PROD → UAT → metadata → API stripeWebhook → validaciones."
+      );
+
+      // PASO 1: SELECT EN PROD STRIPE POR folio
+
+      log.push("Consultando BD PROD Stripe (diri_webhook_stripe) por folio...");
+      console.log("DEBUG /run-flow: antes de SELECT en PROD Stripe", {
+        table: PROD_STRIPE_TABLE,
+        folioCompra,
+      });
+
+      const [rowsProdStripe] = await prodPool.query({
+        sql: `SELECT * FROM ${PROD_STRIPE_TABLE} WHERE folio = ?`,
+        values: [folioCompra],
+        timeout: SQL_QUERY_TIMEOUT_MS,
+      });
+
+      console.log("DEBUG /run-flow: después de SELECT en PROD Stripe", {
+        rowsProdStripeLength: rowsProdStripe.length,
+      });
+
+      if (rowsProdStripe.length === 0) {
+        log.push(
+          "No se encontró ningún registro Stripe en PROD para ese folio (diri_webhook_stripe)."
+        );
+        return sendJsonWithReport(res, 404, {
+          status: "SIN_REGISTRO_PROD_STRIPE",
+          mensaje:
+            "No hay registro en PROD para ese folio en la tabla diri_webhook_stripe.",
+          folioCompra,
+          brandNumber,
+          dn,
+          gateway: gw,
+          tipoOperacion: tipo,
+          rowsProdStripe: [],
+          detalleConsumoAntesJson: detalleConsumoAntes,
+          detalleConsumoDespuesJson: detalleConsumoDespues,
+          detalleConsumoDiff,
+          log,
+        });
+      }
+
+      const registroProdStripe = rowsProdStripe[0];
+      log.push("Registro Stripe encontrado en PROD.");
+
+      // PASO 2: EXISTENCIA EN UAT STRIPE
+
+      log.push(
+        "Verificando si ya existe registro Stripe en UAT para ese folio..."
+      );
+      console.log("DEBUG /run-flow: antes de SELECT existencia en UAT Stripe", {
+        table: UAT_STRIPE_TABLE,
+        folioCompra,
+      });
+
+      const [rowsUatStripeExistentes] = await uatPool.query({
+        sql: `SELECT * FROM ${UAT_STRIPE_TABLE} WHERE folio = ?`,
+        values: [folioCompra],
+        timeout: SQL_QUERY_TIMEOUT_MS,
+      });
+
+      console.log("DEBUG /run-flow: después de SELECT existencia en UAT Stripe", {
+        rowsUatStripeExistentesLength: rowsUatStripeExistentes.length,
+      });
+
+      if (rowsUatStripeExistentes.length > 0) {
+        log.push(
+          "Registro Stripe ya existe en UAT para ese folio; se detiene el flujo de inserción."
+        );
+        return sendJsonWithReport(res, 409, {
+          status: "EXISTE_EN_UAT_STRIPE",
+          mensaje:
+            "El registro Stripe ya existe en UAT. Favor de verificar e intentar de nuevo.",
+          folioCompra,
+          brandNumber,
+          dn,
+          gateway: gw,
+          tipoOperacion: tipo,
+          registroProdStripe,
+          registroUatStripeExistente: rowsUatStripeExistentes[0],
+          detalleConsumoAntesJson: detalleConsumoAntes,
+          detalleConsumoDespuesJson: detalleConsumoDespues,
+          detalleConsumoDiff,
+          log,
+        });
+      }
+
+      // PASO 3: INSERT EN UAT STRIPE
+
+      log.push(
+        "No existía registro Stripe en UAT; insertando registro en UAT..."
+      );
+      console.log("DEBUG /run-flow: antes de INSERT en UAT Stripe", {
+        table: UAT_STRIPE_TABLE,
+        folioCompra,
+      });
+
+      const [insertResultStripe] = await uatPool.query({
+        sql: `INSERT INTO ${UAT_STRIPE_TABLE} SET ?`,
+        values: [registroProdStripe],
+        timeout: SQL_QUERY_TIMEOUT_MS,
+      });
+
+      console.log("DEBUG /run-flow: después de INSERT en UAT Stripe", {
+        insertId: insertResultStripe.insertId,
+        affectedRows: insertResultStripe.affectedRows,
+      });
+
+      log.push(
+        `Registro Stripe insertado en UAT con id = ${
+          insertResultStripe.insertId !== undefined
+            ? insertResultStripe.insertId
+            : "sin autoincremento"
+        }`
+      );
+
+      // PASO 4: RECUPERAR METADATA DESDE UAT STRIPE
+
+      log.push(
+        "Recuperando registro Stripe desde UAT para obtener metadata después del insert..."
+      );
+      console.log("DEBUG /run-flow: antes de SELECT verificación en UAT Stripe", {
+        table: UAT_STRIPE_TABLE,
+        folioCompra,
+      });
+
+      const [rowsUatStripeAfterInsert] = await uatPool.query({
+        sql: `SELECT * FROM ${UAT_STRIPE_TABLE} WHERE folio = ?`,
+        values: [folioCompra],
+        timeout: SQL_QUERY_TIMEOUT_MS,
+      });
+
+      console.log("DEBUG /run-flow: después de SELECT verificación en UAT Stripe", {
+        rowsUatStripeAfterInsertLength: rowsUatStripeAfterInsert.length,
+      });
+
+      let metadataRawStripe = null;
+      let metadataParsedStripe = null;
+
+      if (
+        rowsUatStripeAfterInsert.length > 0 &&
+        Object.prototype.hasOwnProperty.call(rowsUatStripeAfterInsert[0], "metadata")
+      ) {
+        metadataRawStripe = rowsUatStripeAfterInsert[0].metadata;
+        if (metadataRawStripe == null) {
+          log.push(
+            "Columna metadata en UAT Stripe está nula o vacía después del insert."
+          );
+        } else {
+          log.push(
+            "Metadata obtenida desde registro Stripe en UAT; se intenta parsear como JSON."
+          );
+          try {
+            metadataParsedStripe = JSON.parse(metadataRawStripe);
+            log.push("Metadata Stripe en UAT parseada correctamente como JSON.");
+          } catch (e) {
+            log.push(
+              "No se pudo parsear metadata Stripe en UAT como JSON; se dejará en texto plano."
+            );
+          }
+        }
+      } else {
+        log.push(
+          "No se encontró registro Stripe en UAT al verificar después del insert o la columna metadata no existe."
+        );
+      }
+
+      if (!metadataParsedStripe) {
+        log.push(
+          "Metadata Stripe no es un JSON válido; no se puede enviar body correcto a API stripeWebhook."
+        );
+        return sendJsonWithReport(res, 500, {
+          status: "METADATA_INVALIDA_PARA_API_STRIPE",
+          mensaje:
+            "La metadata Stripe no es un JSON válido; no se puede construir el body para la API stripeWebhook.",
+          folioCompra,
+          brandNumber,
+          dn,
+          gateway: gw,
+          tipoOperacion: tipo,
+          registroProdStripe,
+          metadataRawStripe,
+          metadataParsedStripe,
+          detalleConsumoAntesJson: detalleConsumoAntes,
+          detalleConsumoDespuesJson: detalleConsumoDespues,
+          detalleConsumoDiff,
+          log,
+        });
+      }
+
+      // PASO 5: LLAMAR API stripeWebhook CON metadataParsedStripe
+
+      log.push("Llamando API stripeWebhook (POST)...");
+      console.log("DEBUG /run-flow: antes de axios.post a API stripeWebhook", {
+        url: API_STRIPE_WEBHOOK_URL,
+      });
+
+      let apiStripeResponse;
+      try {
+        apiStripeResponse = await axios.post(
+          API_STRIPE_WEBHOOK_URL,
+          metadataParsedStripe,
+          {
+            headers: API_STRIPE_WEBHOOK_HEADERS,
+            timeout: API_STRIPE_TIMEOUT_MS,
+          }
+        );
+      } catch (errorApiStripe) {
+        log.push("ERROR en llamada a API stripeWebhook: " + errorApiStripe.message);
+        console.error(
+          "ERROR /run-flow API_STRIPE_WEBHOOK:",
+          errorApiStripe.message
+        );
+
+        if (errorApiStripe.code === "ECONNABORTED") {
+          log.push("Timeout al llamar API stripeWebhook.");
+          return sendJsonWithReport(res, 504, {
+            status: "ERROR_API_STRIPE_TIMEOUT",
+            mensaje:
+              "La API stripeWebhook tardó más de lo esperado y se interrumpió por timeout.",
+            folioCompra,
+            brandNumber,
+            dn,
+            gateway: gw,
+            tipoOperacion: tipo,
+            registroProdStripe,
+            metadataRawStripe,
+            metadataParsedStripe,
+            detalleConsumoAntesJson: detalleConsumoAntes,
+            detalleConsumoDespuesJson: detalleConsumoDespues,
+            detalleConsumoDiff,
+            log,
+          });
+        }
+
+        if (errorApiStripe.response) {
+          return sendJsonWithReport(res, errorApiStripe.response.status || 500, {
+            status: "ERROR_API_STRIPE",
+            mensaje: "Error al llamar API stripeWebhook.",
+            httpStatus: errorApiStripe.response.status,
+            apiStripeErrorBody: errorApiStripe.response.data,
+            folioCompra,
+            brandNumber,
+            dn,
+            gateway: gw,
+            tipoOperacion: tipo,
+            registroProdStripe,
+            metadataRawStripe,
+            metadataParsedStripe,
+            detalleConsumoAntesJson: detalleConsumoAntes,
+            detalleConsumoDespuesJson: detalleConsumoDespues,
+            detalleConsumoDiff,
+            log,
+          });
+        }
+
+        return sendJsonWithReport(res, 500, {
+          status: "ERROR_API_STRIPE",
+          mensaje: "Error de red al llamar API stripeWebhook.",
+          detalle: errorApiStripe.message,
+          folioCompra,
+          brandNumber,
+          dn,
+          gateway: gw,
+          tipoOperacion: tipo,
+          registroProdStripe,
+          metadataRawStripe,
+          metadataParsedStripe,
+          detalleConsumoAntesJson: detalleConsumoAntes,
+          detalleConsumoDespuesJson: detalleConsumoDespues,
+          detalleConsumoDiff,
+          log,
+        });
+      }
+
+      console.log("DEBUG /run-flow: después de axios.post a API stripeWebhook", {
+        httpStatus: apiStripeResponse.status,
+      });
+
+      const apiStripeData =
+        apiStripeResponse.data !== undefined ? apiStripeResponse.data : null;
+
+      log.push(
+        `API stripeWebhook respondió con status HTTP ${apiStripeResponse.status}.`
+      );
+
+      if (apiStripeResponse.status !== 200) {
+        console.log("DEBUG /run-flow: API_STRIPE_RESPUESTA_NO_OK");
+        return sendJsonWithReport(res, 502, {
+          status: "API_STRIPE_RESPUESTA_NO_OK",
+          mensaje:
+            "La API stripeWebhook respondió pero con un status HTTP distinto de 200. Revisar contenido.",
+          folioCompra,
+          brandNumber,
+          dn,
+          gateway: gw,
+          tipoOperacion: tipo,
+          registroProdStripe,
+          metadataRawStripe,
+          metadataParsedStripe,
+          apiStripeResponse: apiStripeData,
+          detalleConsumoAntesJson: detalleConsumoAntes,
+          detalleConsumoDespuesJson: detalleConsumoDespues,
+          detalleConsumoDiff,
+          log,
+        });
+      }
+
+      log.push(
+        "API stripeWebhook procesó la notificación Stripe con éxito (HTTP 200)."
+      );
+
+      // PASO 6: VALIDACIONES EN TABLAS DE NEGOCIO UAT Y EN MONGODB
+
+      await validarTablasNegocioUat({ tipo, folioCompra, log });
+
+      const { mongoOrderFound, mongoOrder } =
+        await validarEnMongoPorFolioCompra(folioCompra, log);
+
+      // API detalle consumo (DESPUES) + diff
+      if (marcaNumerica && dn && /^[0-9]{10}$/.test(dn)) {
+        const { detalleConsumoDespues: dcDesp, detalleConsumoDiff: dcDiff } =
+          await consultarConsumoDespuesYCalcularDiff({
+            marca: marcaNumerica,
+            dn,
+            detalleConsumoAntes,
+            log,
+          });
+        detalleConsumoDespues = dcDesp;
+        detalleConsumoDiff = dcDiff;
+      }
+
+      return sendJsonWithReport(res, 200, {
+        status: "OK",
+        mensaje:
+          "Flujo Stripe ejecutado → Webhook PROD encontrado → Insertado en UAT → Metadata recuperada desde UAT → Notificación reprocesada por API stripeWebhook (HTTP 200) → Validación en tablas de negocio UAT y en MongoDB.",
+        folioCompra,
+        brandNumber,
+        dn,
+        gateway: gw,
+        tipoOperacion: tipo,
+        registroProdStripe,
+        registroUatInsertStripe: {
+          insertId:
+            insertResultStripe.insertId !== undefined
+              ? insertResultStripe.insertId
+              : null,
+          affectedRows:
+            insertResultStripe.affectedRows !== undefined
+              ? insertResultStripe.affectedRows
+              : null,
+        },
+        metadataRawStripe,
+        metadataParsedStripe,
+        apiStripeResponse: apiStripeData,
+        mongoOrderFound,
+        mongoOrder,
+        detalleConsumoAntesJson: detalleConsumoAntes,
+        detalleConsumoDespuesJson: detalleConsumoDespues,
+        detalleConsumoDiff,
+        log,
+      });
+    }
+
+    // Pasarelas aún no implementadas (en caso de agregar nuevas en el futuro).
     log.push(
       `Pasarela ${gw} aún no implementada en el backend. Se devuelve GATEWAY_NO_IMPLEMENTADO.`
     );
     return sendJsonWithReport(res, 400, {
       status: "GATEWAY_NO_IMPLEMENTADO",
       mensaje:
-        "Por ahora solo están implementados los flujos para MercadoPago, PayPal y OpenPay.",
+        "Por ahora solo están implementados los flujos para MercadoPago, PayPal, OpenPay y Stripe.",
       folioCompra,
       brandNumber,
       dn,

@@ -1,0 +1,102 @@
+===== QA | Simulador de Pagos DIRI - EJECUCIÓN =====
+Fecha/hora servidor (ISO): 2025-12-17T17:59:20.110Z
+
+---- RESUMEN GENERAL ----
+STATUS FINAL: SIN_REGISTRO_PROD_OPENPAY
+MENSAJE: No hay registro en PROD para ese folio en la tabla diri_webhook_openpay.
+
+---- CONTEXTO DE ENTRADA ----
+Folio de compra: webp_17659941755942
+Marca (brandNumber): 1
+DN: 5654903677
+Pasarela: openpay
+Tipo de operación: recarga
+
+---- LOG PASO A PASO ----
+- Recibí folioCompra = webp_17659941755942
+- Marca / brandNumber = 1
+- Pasarela seleccionada = openpay
+- Tipo de operación = recarga
+- DN utilizado = 5654903677
+- Llamando API detalle consumo DN (ANTES_DE_REPROCESO) webresources/consultaConsumo (POST)...
+- API detalle consumo DN (ANTES_DE_REPROCESO) respondió correctamente: HTTP 200.
+- Iniciando flujo OpenPay: webhook PROD → UAT → construcción JSON → API webhookopenpay → validaciones.
+- Consultando BD PROD OpenPay (diri_webhook_openpay) por folio...
+- No se encontró ningún registro OpenPay en PROD para ese folio (diri_webhook_openpay).
+
+---- DETALLE CONSUMO DN - ANTES_DE_REPROCESO ----
+{
+  "codRespuesta": "OK",
+  "detalle": "SE PROCESO CON EXITO LA PETICION",
+  "perfilClienteApp": {
+    "lineas": [
+      {
+        "datoslinea": {
+          "dn": "5654903677",
+          "esprincipal": "1",
+          "fechacorte": "07-01-2026",
+          "offeridaltan": "1809906128",
+          "plancontratado": "Explora Anual",
+          "tipo": "prepago",
+          "codigoplanref": "8eae4e",
+          "recargaVigente": "SI",
+          "fechasRecarga": {
+            "ultimarecarga": "2025-12-07 12:00:00",
+            "vigenciarecarga": "2026-01-07 12:00:00"
+          },
+          "nobanda28": "NO",
+          "categoria_plan": "ANUAL",
+          "fecha_inicio": "2025-10-06 17:48:04",
+          "fecha_renovacion": "2026-10-06 17:48:04",
+          "mesesRestantesAnual": 10
+        },
+        "subscriber": {
+          "msisdn": "5654903677",
+          "imsi": "334140179329281",
+          "iccid": "8952140062587578886",
+          "imei": "",
+          "status": "Active",
+          "product": "Movilidad",
+          "coordinates": ","
+        },
+        "sms": {
+          "disponible": 1750,
+          "consumo": 0,
+          "total": 1750,
+          "ilimitado": "SI"
+        },
+        "voz": {
+          "disponible": 45450,
+          "consumo": 0,
+          "total": 45450,
+          "ilimitado": "SI"
+        },
+        "datos": {
+          "disponible": 4.1,
+          "consumo": 0,
+          "total": 4.1,
+          "ilimitado": "NO"
+        },
+        "rs": {
+          "disponible": 105.4,
+          "consumo": 0,
+          "total": 105.4,
+          "ilimitado": "SI"
+        },
+        "throttlin": {
+          "disponible": 0,
+          "consumo": 0,
+          "total": 0,
+          "ilimitado": "NO"
+        }
+      }
+    ],
+    "fallaAltan": false
+  }
+}
+
+---- DETALLE CONSUMO DN - DESPUES_DE_REPROCESO ----
+null
+
+---- DIFERENCIAS DETALLE CONSUMO (ANTES vs DESPUES) ----
+Sin diferencias o no se pudo calcular diff.

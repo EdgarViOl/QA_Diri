@@ -492,7 +492,16 @@
     </div>
   </div>
 
+  <!--
+    Frontend: Simulador de Pagos
+    - Envía una petición POST a /run-flow con el payload:
+      { folioCompra, brandNumber, gateway, tipoOperacion, purchaseDate, dn }
+    - Muestra estado, pasos y detalle técnico devuelto por el backend.
+    - Permite descargar un reporte TXT si el backend lo devuelve.
+  -->
+
   <script>
+    //Referenacias a elementos del DOM
     const form = document.getElementById("flowForm");
     const runButton = document.getElementById("runButton");
     const clearButton = document.getElementById("clearButton");
@@ -534,6 +543,15 @@
       validarFormularioYBoton();
     });
 
+    /**
+     * Inferir tipo de operación desde el prefijo del folioCompra.
+     * Reglas heurísticas usadas por la UI:
+     * - prefijo con longitud 4 -> 'recarga'
+     * - prefijo con longitud 3 -> 'compra'
+     * Si no se puede inferir devuelve null.
+     * @param {string} folio
+     * @returns {'recarga'|'compra'|null}
+     */
     function inferirTipoDesdeFolio(folio) {
       if (!folio || typeof folio !== "string") return null;
       const partes = folio.split("_");
@@ -544,6 +562,15 @@
       return null;
     }
 
+    /**
+     * Validación de formulario y control del botón "Ejecutar flujo".
+     * Reglas principales:
+     * - El folio debe existir (se intenta inferir el tipo desde el prefijo).
+     * - Si el folio sugiere un tipo distinto al seleccionado, se muestra advertencia.
+     * - Para PayPal se requiere `purchaseDate`.
+     * - `dn` debe ser exactamente 10 dígitos numéricos.
+     * Actualiza `summaryMessage` y habilita/deshabilita `runButton`.
+     */
     function validarFormularioYBoton() {
       const folio = folioCompraInput.value.trim();
       const dn = dnInput.value.trim();
@@ -603,6 +630,12 @@
     dnInput.addEventListener("input", validarFormularioYBoton);
     purchaseDateInput.addEventListener("input", validarFormularioYBoton);
 
+    /**
+     * Handler del submit del formulario principal.
+     * - Construye el payload esperado por `/run-flow` (folioCompra, brandNumber, gateway, tipoOperacion, purchaseDate, dn)
+     * - Usa AbortController para cancelar la petición tras un timeout (timeoutMs)
+     * - Renderiza resumen, pasos y detalles recibidos del backend
+     */
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
 
@@ -624,7 +657,7 @@
       setStatusRunning("Ejecutando flujo, esperando respuesta del backend...");
 
       const controller = new AbortController();
-      const timeoutMs = 850000;
+      const timeoutMs = 850000; // se mantiene amplio por la naturaleza de reprocesos largos
       const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
       try {
@@ -707,6 +740,10 @@
       }
     });
 
+    /**
+     * Muestra estado de carga en el botón principal.
+     * @param {boolean} isLoading
+     */
     function setLoading(isLoading) {
       if (isLoading) {
         runButton.disabled = true;
@@ -717,6 +754,10 @@
       }
     }
 
+    /**
+     * Establece el chip de estado en 'running' y actualiza el mensaje resumido.
+     * @param {string} texto Texto informativo a mostrar
+     */
     function setStatusRunning(texto) {
       statusChip.className = "status-bar status-running";
       const chipChildren = statusChip.querySelectorAll("span");
@@ -739,6 +780,9 @@
       downloadReportButton.onclick = null;
     }
 
+    /**
+     * Limpia la UI y regresa todo a estado inicial (idle).
+     */
     function resetFullView() {
       resetSummaryIdle();
       stepsSection.classList.add("hidden");
@@ -750,6 +794,9 @@
       toggleDetailsButton.textContent = "Ver detalles";
     }
 
+    /**
+     * Preparar la vista antes de ejecutar un nuevo run: oculta secciones y limpia contenidos.
+     */
     function resetViewBeforeRun() {
       stepsSection.classList.add("hidden");
       detailsSection.classList.add("hidden");
@@ -763,6 +810,13 @@
       downloadReportButton.onclick = null;
     }
 
+    /**
+     * Extrae una URL de reporte (o ruta relativa) desde el objeto de respuesta `data`.
+     * Busca claves conocidas que pueden contener rutas o nombres de archivo y devuelve
+     * una URL utilizable por el frontend para abrir o descargar el reporte.
+     * @param {object} data
+     * @returns {string|null}
+     */
     function computeReportUrlFromData(data) {
       if (!data || typeof data !== "object") return null;
 
@@ -803,6 +857,14 @@
       return null;
     }
 
+    /**
+     * Renderiza el resumen principal (status, mensaje y datos clave).
+     * - Traduce códigos de status a clases CSS y textos legibles.
+     * - Muestra datos clave (folio, marca, DN, etc.) en `summaryKeyData`.
+     * - Habilita el botón de descarga de reporte si el backend devolvió URL/nombre.
+     * @param {object} data
+     * @param {boolean} httpOk
+     */
     function renderSummary(data, httpOk) {
       const status = data.status || (httpOk ? "OK" : "ERROR");
       const mensaje = data.mensaje || "Sin mensaje";
@@ -880,6 +942,11 @@
       }
     }
 
+    /**
+     * Renderiza la lista de pasos (logs) de la ejecución.
+     * Clasifica cada entrada en OK / ERROR / NEUTRAL para colorear la lista.
+     * @param {object} data
+     */
     function renderSteps(data) {
       stepsSection.classList.remove("hidden");
       stepsList.innerHTML = "";
@@ -920,6 +987,11 @@
       });
     }
 
+    /**
+     * Renderiza la sección de detalles técnicos con el JSON completo recibido.
+     * El contenedor queda oculto por defecto; el usuario puede expandirlo con el botón.
+     * @param {object} data
+     */
     function renderDetails(data) {
       detailsSection.classList.remove("hidden");
       detailsPre.textContent = JSON.stringify(data, null, 2);

@@ -7,6 +7,25 @@ inserción en UAT y reproceso mediante APIs internas.
 
 ---
 
+## Índice
+
+- [1. Alcance](#1-alcance)
+- [2. Verificación de Consumo](#2-verificación-de-consumo-antes--después--diff)
+- [3. Flujos por Pasarela](#3-flujos-por-pasarela)
+  - [3.1 MercadoPago](#31-mercadopago)
+  - [3.2 PayPal](#32-paypal)
+  - [3.3 OpenPay](#33-openpay)
+- [4. Request/Response del Endpoint POST /run-flow](#4-requestresponse-del-endpoint-post-run-flow)
+- [5. Frontend — Vistas y funcionalidades](#5-frontend--vistas-y-funcionalidades)
+  - [index.html](#indexhtml)
+  - [compare_consumo.html](#compare_consumohtml)
+- [6. Ejecución Local](#6-ejecución-local)
+- [7. Timeouts configurados](#7-timeouts-configurados)
+- [8. Validaciones internas](#8-validaciones-internas)
+- [9. Recomendaciones](#9-recomendaciones)
+
+---
+
 ## 1. Alcance
 
 Pasarelas implementadas:
@@ -77,18 +96,30 @@ La API interna `consultaConsumo` permite capturar el estado del DN antes y despu
 **Diagrama:**
 ```mermaid
 flowchart TD
-  A["Frontend<br/>(folioCompra, brandNumber, dn)"] --> B["GET /v1/payments/search<br/>(external_reference=folioCompra)"]
-  B --> C["Obtener folioMercado<br/>(primer resultado)"]
-  C --> D["SELECT diriprod.diri_webhook_mercadopago<br/>(folio_mercadopago=folioMercado)"]
-  D --> E{Existe en UAT?}
-  E -->|No| F["INSERT en diriuat.diri_webhook_mercadopago"]
-  E -->|Sí| G["Usar registro UAT"]
-  F --> H["Extraer metadata, parsear JSON"]
-  G --> H
-  H --> I["POST /procesanotificacionmercadopago/{brandNumber}"]
-  I --> J["Validar en diri_recarga/diri_preventa y MongoDB"]
-  J --> K["Consumo DESPUÉS + DIFF"]
-  K --> L["Respuesta con log y resultados"]
+  Start["Inicio / POST /run-flow"] --> Validaciones["Validaciones: folioCompra, brandNumber, dn, gateway"]
+  Validaciones --> ConsumoAntes["API detalle consumo (ANTES)"]
+  ConsumoAntes --> MPsearch["MercadoPago: GET /v1/payments/search (external_reference=folioCompra)"]
+  MPsearch -->|no results| NoResults["SIN_RESULTADOS (404)"]
+  MPsearch -->|found folioMercado| ConsultaProd["SELECT PROD (diri_webhook_mercadopago)"]
+  ConsultaProd -->|no rows| NoProd["SIN_REGISTRO_PROD (404)"]
+  ConsultaProd --> VerificarUat["Verificar existencia en UAT"]
+  VerificarUat -->|exists| ExisteUat["EXISTE_EN_UAT (409)"]
+  VerificarUat -->|not exists| InsertUat["INSERT en UAT"]
+  InsertUat --> UpdateUat["UPDATE estatus='PENDIENTE' en UAT"]
+  UpdateUat --> ParseMetadata["Parse metadata → metadataParsed"]
+  ParseMetadata -->|invalid| MetadataInvalid["METADATA_INVALIDA_PARA_API2 (500)"]
+  ParseMetadata --> CallAPI["POST /procesanotificacionmercadopago/{brandNumber}"]
+  CallAPI -->|error| ApiError["API2_RESPUESTA_NO_OK (502)"]
+  CallAPI --> ValidacionesNegocio["Validaciones de negocio (diri_recarga / diri_preventa)"]
+  ValidacionesNegocio --> MongoVal["Validar MongoDB (tbl_orders)"]
+  MongoVal --> ConsumoDespues["API detalle consumo (DESPUÉS)"]
+  ConsumoDespues --> ComputeDiff["computeJsonDiff(ANTES,DESPUÉS)"]
+  ComputeDiff --> Response["200: Responder JSON con logs y detalles"]
+  NoResults --> ResponseErr1["Responder 404"]
+  NoProd --> ResponseErr2["Responder 404"]
+  ExisteUat --> ResponseErr3["Responder 409"]
+  MetadataInvalid --> ResponseErr4["Responder 500"]
+  ApiError --> ResponseErr5["Responder 502"]
 ```
 
 ---
@@ -118,19 +149,27 @@ flowchart TD
 **Diagrama:**
 ```mermaid
 flowchart TD
-  A["Frontend<br/>(folioCompra, purchaseDate, dn)"] --> B["SELECT diriprod.diri_webhook_paypal<br/>(fecha_registro >= purchaseDate,<br/>metadata LIKE folioCompra)"]
-  B --> C["Obtener idrecurso del resultado"]
-  C --> D["SELECT diriprod.diri_webhook_paypal<br/>(fecha_registro >= purchaseDate,<br/>metadata LIKE idrecurso)"]
-  D --> E["Filtrar evento = 'PAYMENT.CAPTURE.COMPLETED'"]
-  E --> F{Existe en UAT?}
-  F -->|No| G["INSERT en diriuat.diri_webhook_paypal"]
-  F -->|Sí| H["Usar registro UAT"]
-  G --> I["Extraer metadata, parsear JSON"]
-  H --> I
-  I --> J["POST /paypalwebhook"]
-  J --> K["Validar en diri_recarga/diri_preventa y MongoDB"]
-  K --> L["Consumo DESPUÉS + DIFF"]
-  L --> M["Respuesta con log y resultados"]
+  Start["Inicio / POST /run-flow"] --> ValidacionesPP["Validaciones: purchaseDate (YYYY-MM-DD), folioCompra, dn"]
+  ValidacionesPP --> ConsumoAntesPP["API detalle consumo (ANTES)"]
+  ConsumoAntesPP --> ProdQuery1["SELECT PROD (diri_webhook_paypal) por metadata ~ folioCompra + fecha >= purchaseDate"]
+  ProdQuery1 -->|no rows| NoProdPP["SIN_REGISTRO_PROD_PAYPAL (404)"]
+  ProdQuery1 -->|rows| ExtractId["idrecurso = registros[0].idrecurso"]
+  ExtractId --> ProdQuery2["SELECT PROD por idrecurso"]
+  ProdQuery2 -->|no rows| NoProdPP2["SIN_REGISTRO_PROD_PAYPAL (404)"]
+  ProdQuery2 -->|found evento 'PAYMENT.CAPTURE.COMPLETED'| VerificarUatPP["Verificar existencia en UAT por idrecurso"]
+  VerificarUatPP -->|exists| ExisteUatPP["EXISTE_EN_UAT_PAYPAL (409)"]
+  VerificarUatPP -->|not exists| InsertUatPP["INSERT en UAT"]
+  InsertUatPP --> ParseMetadataPP["Parse metadata → metadataParsedPaypal"]
+  ParseMetadataPP --> CallPaypalAPI["POST /paypalwebhook"]
+  CallPaypalAPI -->|error| ApiErrorPP["API_PAYPAL_RESPUESTA_NO_OK (502)"]
+  CallPaypalAPI --> ValidacionesNegocioPP["Validaciones de negocio + Validar MongoDB"]
+  ValidacionesNegocioPP --> ConsumoDespuesPP["API detalle consumo (DESPUÉS)"]
+  ConsumoDespuesPP --> ComputeDiffPP["computeJsonDiff(ANTES,DESPUÉS)"]
+  ComputeDiffPP --> ResponsePP["200: Responder JSON con logs y detalles"]
+  NoProdPP --> ResponseErrPP1["Responder 404"]
+  NoProdPP2 --> ResponseErrPP2["Responder 404"]
+  ExisteUatPP --> ResponseErrPP3["Responder 409"]
+  ApiErrorPP --> ResponseErrPP4["Responder 502"]
 ```
 
 ---
@@ -158,18 +197,25 @@ flowchart TD
 **Diagrama:**
 ```mermaid
 flowchart TD
-  A["Frontend<br/>(folioCompra, dn)"] --> B["SELECT diriprod.diri_webhook_openpay<br/>(folio=folioCompra)"]
-  B --> C{Existe en UAT?}
-  C -->|No| D["INSERT en diriuat.diri_webhook_openpay"]
-  C -->|Sí| E["Usar registro UAT"]
-  D --> F["SELECT diriuat.diri_webhook_openpay<br/>(obtener metadata)"]
-  E --> F
-  F --> G["Parsear metadata<br/>(extraer transaction, customer fields)"]
-  G --> H["Construir JSON OpenPay<br/>(sustituir campos dinámicos)"]
-  H --> I["POST /webhookopenpay"]
-  I --> J["Validar en diri_recarga/diri_preventa y MongoDB"]
-  J --> K["Consumo DESPUÉS + DIFF"]
-  K --> L["Respuesta con log y resultados"]
+  StartOP["Inicio / POST /run-flow"] --> ValidacionesOP["Validaciones + API detalle consumo (ANTES)"]
+  ValidacionesOP --> ConsultaProdOP["SELECT PROD (diri_webhook_openpay) WHERE folio = folioCompra"]
+  ConsultaProdOP -->|no rows| NoProdOP["SIN_REGISTRO_PROD_OPENPAY (404)"]
+  ConsultaProdOP --> VerificarUatOP["Verificar existencia en UAT por folio"]
+  VerificarUatOP -->|exists| ExisteUatOP["EXISTE_EN_UAT_OPENPAY (409)"]
+  VerificarUatOP -->|not exists| InsertUatOP["INSERT en UAT"]
+  InsertUatOP --> RecuperarMeta["SELECT UAT + Parse metadata → metadataParsedOpenpay"]
+  RecuperarMeta -->|invalid| MetadataInvalidOP["METADATA_INVALIDA_PARA_API_OPENPAY (500)"]
+  RecuperarMeta --> BuildOpenpay["Construir JSON webhook OpenPay (template + substitutions)"]
+  BuildOpenpay --> CallOpenpay["POST /webhookopenpay"]
+  CallOpenpay -->|error| ApiErrorOP["API_OPENPAY_RESPUESTA_NO_OK (502)"]
+  CallOpenpay --> ValidacionesNegocioOP["Validaciones de negocio + Validar MongoDB"]
+  ValidacionesNegocioOP --> ConsumoDespuesOP["API detalle consumo (DESPUÉS)"]
+  ConsumoDespuesOP --> ComputeDiffOP["computeJsonDiff(ANTES,DESPUÉS)"]
+  ComputeDiffOP --> ResponseOP["200: Responder JSON con logs y detalles"]
+  NoProdOP --> ResponseErrOP1["Responder 404"]
+  ExisteUatOP --> ResponseErrOP2["Responder 409"]
+  MetadataInvalidOP --> ResponseErrOP3["Responder 500"]
+  ApiErrorOP --> ResponseErrOP4["Responder 502"]
 ```
 
 ---
@@ -238,7 +284,71 @@ flowchart TD
 
 ---
 
-## 5. Ejecución Local
+## 5. Frontend — Vistas y funcionalidades
+
+Este proyecto incluye dos vistas principales en `public/`:
+
+- `index.html` (Simulador de Pagos): formulario para ejecutar reprocesos y visualizar resultados.
+- `compare_consumo.html` (Comparador JSON): herramienta auxiliar para comparar manualmente respuestas de `consultaConsumo` ANTES/DESPUÉS.
+
+### `index.html` (Simulador de Pagos)
+
+Funcionalidad clave:
+- Formulario con campos: `folioCompra`, `brandNumber`, `dn`, `gateway`, `purchaseDate` (solo PayPal), `tipoOperacion`.
+- Validaciones en cliente: DN numérico (10 dígitos), `purchaseDate` requerido para PayPal, inferencia heurística de `tipoOperacion` desde el prefijo del folio.
+- Envía `POST /run-flow` con payload JSON y muestra: resumen, pasos (logs), detalle técnico y opción de descargar reporte TXT si lo devuelve el backend.
+
+Funciones JS importantes (Resumen):
+- `inferirTipoDesdeFolio(folio)` — heurística para inferir `recarga` o `compra` desde el prefijo del folio.
+- `validarFormularioYBoton()` — valida inputs y habilita/deshabilita botón.
+- `form.addEventListener('submit', ...)` — construye el payload, usa AbortController para timeout y llama a `/run-flow`.
+- `renderSummary(data, httpOk)` — renderiza estado, mensajes y botón de descarga si aplica.
+- `renderSteps(data)` — muestra logs por pasos (clasificados en OK/ERROR/NEUTRAL).
+- `renderDetails(data)` — muestra JSON completo en la UI (expandible).
+
+Diagrama de interacción (index.html):
+
+```mermaid
+flowchart TD
+  User["Usuario (UI)"] --> Form["Formulario index.html"]
+  Form -->|POST /run-flow| Server["Backend /run-flow (server.js)"]
+  Server -->|JSON response| Form
+  Form --> UI["Resumen / Pasos / Detalles (render)"]
+  Form -->|Opcional| Download["Abrir reporte TXT (si está presente)"]
+```
+
+Diagrama: `computeJsonDiff` (equivalente cliente/servidor)
+
+```mermaid
+flowchart TD
+  Start["Inicio: recibir BEFORE y AFTER JSON"] --> CheckType["¿Tipos iguales? (obj/arr/prim)"]
+  CheckType -->|No| DiffDirect["Registrar diff: tipos distintos"]
+  CheckType -->|Sí & obj| IterateKeys["Iterar claves (union de claves)"]
+  IterateKeys --> CompareChildren["Recursar por cada clave (walk)"]
+  CheckType -->|Sí & array| IterateArray["Comparar índices hasta max(lenA,lenB)"]
+  IterateArray --> CompareChildren
+  CompareChildren --> End["Compilar lista de diffs y devolver"]
+```
+
+### `compare_consumo.html` (Comparador JSON)
+
+Funcionalidad clave:
+- Pegar manualmente los JSON ANTES y DESPUÉS (respuesta de `consultaConsumo`).
+- Lógica de comparación recursiva (cliente) equivalente a `computeJsonDiff` del backend.
+- Muestra una tabla con `path`, `antes` y `despues` para cada diferencia detectada.
+
+Diagrama de interacción (compare_consumo.html):
+
+```mermaid
+flowchart LR
+  User["Usuario (UI)"] --> CompareForm["Formulario compare_consumo.html"]
+  CompareForm -->|computeJsonDiff(client)| DiffTable["Tabla de diferencias"]
+  DiffTable --> User
+```
+
+---
+
+## 6. Ejecución Local
 
 **5.1. Configuración de variables de entorno**
 

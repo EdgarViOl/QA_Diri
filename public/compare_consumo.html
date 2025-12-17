@@ -435,6 +435,12 @@
   </div>
 
   <script>
+    /*
+      Frontend: Comparador JSON consultaConsumo
+      - Permite pegar las respuestas ANTES y DESPUÉS de /webresources/consultaConsumo
+      - Ejecuta una comparación recursiva (computeJsonDiff) equivalente a la lógica del backend
+      - Muestra una tabla con los paths y los valores antes/después
+    */
     // Referencias a elementos del DOM
     const compareForm = document.getElementById("compareForm");
     const compareButton = document.getElementById("compareButton");

@@ -68,7 +68,10 @@ flowchart TD
 
 ### Archivos Clave
 
-#### `server.js` (2084 líneas)
+#### `server.js` (archivo principal del backend) - notas:
+
+- Expone `POST /run-flow` y sirve los assets estáticos en `public/`.
+- Implementa flujos específicos por pasarela y helpers de validación, MongoDB y consultas de consumo.
 
 **Secciones principales:**
 
@@ -153,6 +156,54 @@ flowchart TB
     "insertId": 12345,
     "affectedRows": 1
   },
+```
+
+---
+
+## Frontend (UI)
+
+El proyecto provee dos páginas en `public/` que interactúan con `server.js` y con datos de `consultaConsumo`:
+
+### `index.html` — Simulador de Pagos
+
+- Campos principales: `folioCompra`, `brandNumber`, `dn`, `gateway`, `purchaseDate` (solo PayPal), `tipoOperacion`.
+- Validaciones en cliente:
+  - `dn`: numérico de 10 dígitos.
+  - `purchaseDate`: requerido si `gateway == 'paypal'`.
+  - Inferencia heurística de `tipoOperacion` desde el prefijo del `folioCompra` (función `inferirTipoDesdeFolio`).
+- Eventos y flujo:
+  - El cambio de `gateway` muestra/oculta el campo `purchaseDate` cuando es PayPal.
+  - En el submit se lanza un `POST /run-flow` con el body JSON esperado, incluye manejo de timeout mediante `AbortController`.
+  - Después de la respuesta se renderizan: resumen (`renderSummary`), lista de pasos (`renderSteps`) y detalle técnico (`renderDetails`).
+
+Diagrama (index.html):
+
+```mermaid
+flowchart TD
+  User["Usuario (UI)"] --> Form["index.html: formulario"]
+  Form -->|POST /run-flow| Server["server.js /run-flow"]
+  Server -->|JSON| Form
+  Form --> Summary["Resumen / Pasos / Detalles"]
+  Summary --> User
+```
+
+### `compare_consumo.html` — Comparador JSON
+
+- Propósito: comparar manualmente (cliente) dos respuestas JSON de `consultaConsumo` (ANTES y DESPUÉS).
+- Implementa `computeJsonDiff` en JS comportamiento equivalente a la función homónima del backend (recursiva, distingue arrays/objetos/valores primitivos).
+- Output: tabla con columnas (path, antes, despues) y contador de diferencias.
+
+Diagrama (compare_consumo.html):
+
+```mermaid
+flowchart LR
+  User["Usuario (UI)"] --> CompareForm["compare_consumo.html: formulario"]
+  CompareForm -->|computeJsonDiff(client)| DiffTable["Tabla de diferencias"]
+  DiffTable --> User
+```
+
+---
+
   
   // Metadata
   "metadataRaw": "{...}",           // String JSON sin parsear
@@ -208,191 +259,110 @@ flowchart TB
 
 ---
 
+### Diagrama del flujo `/run-flow`
+
+```mermaid
+flowchart TD
+  Client["Frontend /run-flow request"] --> Server["server.js /run-flow"]
+  Server --> ConsumoAntes["llamarApiDetalleConsumoDN(ANTES)"]
+  Server --> Search["Buscar pago en pasarela / SELECT PROD"]
+  Search --> UATCheck["Verificar/Insertar en UAT"]
+  UATCheck --> ProcessAPI["LLamar API interna por pasarela"]
+  ProcessAPI --> Validations["Validar tablas de negocio & MongoDB"]
+  Validations --> ConsumoDespues["llamarApiDetalleConsumoDN(DESPUES)"]
+  ConsumoDespues --> Diff["computeJsonDiff(ANTES,DESPUES)"]
+  Diff --> Report["Generar .txt y responder JSON"]
+  Report --> Client
+```
+
+---
+
 ## Flujos por Pasarela
 
 ### Flujo MercadoPago
 
+```mermaid
+flowchart TD
+  Start[Inicio / POST /run-flow] --> Validaciones[Validaciones: folioCompra, brandNumber, dn, gateway]
+  Validaciones --> ConsumoAntes[API detalle consumo (ANTES)]
+  ConsumoAntes --> MPsearch[MercadoPago: GET /v1/payments/search (external_reference=folioCompra)]
+  MPsearch -->|no results| NoResults[SIN_RESULTADOS (404)]
+  MPsearch -->|found folioMercado| ConsultaProd[SELECT PROD (diri_webhook_mercadopago)]
+  ConsultaProd -->|no rows| NoProd[SIN_REGISTRO_PROD (404)]
+  ConsultaProd --> VerificarUat[Verificar existencia en UAT]
+  VerificarUat -->|exists| ExisteUat[EXISTE_EN_UAT (409)]
+  VerificarUat -->|not exists| InsertUat[INSERT en UAT]
+  InsertUat --> UpdateUat[UPDATE estatus='PENDIENTE' en UAT]
+  UpdateUat --> ParseMetadata[Parse metadata → metadataParsed]
+  ParseMetadata -->|invalid| MetadataInvalid[METADATA_INVALIDA_PARA_API2 (500)]
+  ParseMetadata --> CallAPI[POST /procesanotificacionmercadopago/{brandNumber}]
+  CallAPI -->|error| ApiError[API2_RESPUESTA_NO_OK (502)]
+  CallAPI --> ValidacionesNegocio[Validaciones de negocio (diri_recarga / diri_preventa)]
+  ValidacionesNegocio --> MongoVal[Validar MongoDB (tbl_orders)]
+  MongoVal --> ConsumoDespues[API detalle consumo (DESPUÉS)]
+  ConsumoDespues --> ComputeDiff[computeJsonDiff(ANTES,DESPUÉS)]
+  ComputeDiff --> Response[200: Responder JSON con logs y detalles]
+  NoResults --> ResponseErr1[Responder 404]
+  NoProd --> ResponseErr2[Responder 404]
+  ExisteUat --> ResponseErr3[Responder 409]
+  MetadataInvalid --> ResponseErr4[Responder 500]
+  ApiError --> ResponseErr5[Responder 502]
 ```
-1. VALIDACIONES
-   ├─ Validar folioCompra (string, ≤100 chars)
-   ├─ Validar brandNumber (1-6 dígitos, requerido)
-   ├─ Validar dn (exactamente 10 dígitos)
-   └─ Validar gateway
 
-2. API DETALLE CONSUMO (ANTES)
-   └─ GET /consultaConsumo + { marca, dn }
-
-3. MERCADOPAGO SEARCH
-   ├─ GET https://api.mercadopago.com/v1/payments/search
-   │   └─ Param: external_reference = folioCompra
-   ├─ Status: 200
-   ├─ Parse: results[0].id → folioMercado
-   └─ Si no hay resultados → Error SIN_RESULTADOS
-
-4. CONSULTA PROD
-   ├─ SELECT * FROM diri_webhook_mercadopago
-   │   WHERE folio_mercadopago = folioMercado
-   ├─ Si no hay resultados → Error SIN_REGISTRO_PROD
-   └─ Parse: registroProd
-
-5. VERIFICAR EXISTENCIA EN UAT
-   ├─ SELECT * FROM diri_webhook_mercadopago (UAT)
-   │   WHERE folio_mercadopago = folioMercado
-   ├─ Si existe → Error EXISTE_EN_UAT (409)
-   └─ Si no existe → Continuar
-
-6. INSERT EN UAT
-   ├─ INSERT INTO diri_webhook_mercadopago (UAT)
-   │   SET registroProd
-   └─ affectedRows > 0 ✓
-
-7. UPDATE ESTATUS EN UAT
-   ├─ UPDATE diri_webhook_mercadopago (UAT)
-   │   SET estatus = 'PENDIENTE'
-   │   WHERE folio_mercadopago = folioMercado
-   └─ affectedRows > 0 ✓
-
-8. PROCESAR METADATA
-   ├─ Parse registroProd.metadata (JSON)
-   ├─ Si falla parse → Error METADATA_INVALIDA_PARA_API2 (500)
-   └─ metadataParsed
-
-9. API PROCESAMIENTO
-   ├─ POST https://uatserviciosweb.diri.mx/webresources/procesanotificacionmercadopago/{brandNumber}
-   │   Header: Authorization: Bearer ...
-   │   Body: metadataParsed
-   ├─ Status: 200
-   ├─ Response: { codRespuesta: "OK", detalle: "SE PROCESO CON EXITO LA PETICION" }
-   └─ Si error → Error API2_RESPUESTA_NO_OK (502)
-
-10. VALIDACIONES DE NEGOCIO
-    ├─ Tabla diri_recarga (si tipoOperacion = "recarga")
-    │   └─ SELECT by folio, verificar estatus OK/PAGADO
-    ├─ Tabla diri_preventa (si tipoOperacion = "compra")
-    │   └─ SELECT by folio, verificar status OK/PAGADO
-    └─ Registra en logs (warnings si no coincide)
-
-11. VALIDACION MONGODB
-    ├─ findOne({ _id: { $regex: folioCompra } }) en tbl_orders
-    ├─ Verifica status: "Entregado" o "PAID"
-    └─ Registra encontrado/no encontrado en logs
-
-12. API DETALLE CONSUMO (DESPUÉS)
-    ├─ GET /consultaConsumo + { marca, dn }
-    ├─ computeJsonDiff(ANTES, DESPUÉS)
-    └─ Registra cambios encontrados
-
-13. RESPUESTA
-    └─ 200 + JSON con todos los detalles
-```
 
 ### Flujo PayPal
 
+```mermaid
+flowchart TD
+  Start[Inicio / POST /run-flow] --> ValidacionesPP[Validaciones: purchaseDate (YYYY-MM-DD), folioCompra, dn]
+  ValidacionesPP --> ConsumoAntesPP[API detalle consumo (ANTES)]
+  ConsumoAntesPP --> ProdQuery1[SELECT PROD (diri_webhook_paypal) por metadata ~ folioCompra + fecha >= purchaseDate]
+  ProdQuery1 -->|no rows| NoProdPP[SIN_REGISTRO_PROD_PAYPAL (404)]
+  ProdQuery1 -->|rows| ExtractId[idrecurso = registros[0].idrecurso]
+  ExtractId --> ProdQuery2[SELECT PROD por idrecurso]
+  ProdQuery2 -->|no rows| NoProdPP2[SIN_REGISTRO_PROD_PAYPAL (404)]
+  ProdQuery2 -->|found evento 'PAYMENT.CAPTURE.COMPLETED'| VerificarUatPP[Verificar existencia en UAT por idrecurso]
+  VerificarUatPP -->|exists| ExisteUatPP[EXISTE_EN_UAT_PAYPAL (409)]
+  VerificarUatPP -->|not exists| InsertUatPP[INSERT en UAT]
+  InsertUatPP --> ParseMetadataPP[Parse metadata → metadataParsedPaypal]
+  ParseMetadataPP --> CallPaypalAPI[POST /paypalwebhook]
+  CallPaypalAPI -->|error| ApiErrorPP[API_PAYPAL_RESPUESTA_NO_OK (502)]
+  CallPaypalAPI --> ValidacionesNegocioPP[Validaciones de negocio + Validar MongoDB]
+  ValidacionesNegocioPP --> ConsumoDespuesPP[API detalle consumo (DESPUÉS)]
+  ConsumoDespuesPP --> ComputeDiffPP[computeJsonDiff(ANTES,DESPUÉS)]
+  ComputeDiffPP --> ResponsePP[200: Responder JSON con logs y detalles]
+  NoProdPP --> ResponseErrPP1[Responder 404]
+  NoProdPP2 --> ResponseErrPP2[Responder 404]
+  ExisteUatPP --> ResponseErrPP3[Responder 409]
+  ApiErrorPP --> ResponseErrPP4[Responder 502]
 ```
-1. VALIDACIONES
-   ├─ Validar purchaseDate (requerido, YYYY-MM-DD)
-   └─ Otros como MercadoPago
 
-2. API DETALLE CONSUMO (ANTES)
-   └─ GET /consultaConsumo + { marca, dn }
-
-3. PRIMERA CONSULTA PROD - POR folioCompra
-   ├─ SELECT * FROM diri_webhook_paypal (PROD)
-   │   WHERE fecha_registro >= '{purchaseDate} 00:00:00'
-   │   AND metadata LIKE '%{folioCompra}%'
-   ├─ Si no hay → Error SIN_REGISTRO_PROD_PAYPAL (404)
-   └─ Extrae: idrecurso = registros[0].idrecurso
-
-4. SEGUNDA CONSULTA PROD - POR idrecurso
-   ├─ SELECT * FROM diri_webhook_paypal (PROD)
-   │   WHERE fecha_registro >= '{purchaseDate} 00:00:00'
-   │   AND metadata LIKE '%{idrecurso}%'
-   ├─ Si no hay → Error SIN_REGISTRO_PROD_PAYPAL (404)
-   └─ Busca: evento = "PAYMENT.CAPTURE.COMPLETED"
-
-5. VERIFICAR EXISTENCIA EN UAT
-   ├─ SELECT * FROM diri_webhook_paypal (UAT)
-   │   WHERE idrecurso = idrecurso
-   ├─ Si existe → Error EXISTE_EN_UAT_PAYPAL (409)
-   └─ Si no → Continuar
-
-6. INSERT EN UAT
-   ├─ INSERT INTO diri_webhook_paypal (UAT)
-   │   SET registroProdPaypal
-   └─ affectedRows > 0 ✓
-
-7. PROCESAR METADATA
-   ├─ Parse registroProdPaypal.metadata (JSON)
-   └─ metadataParsedPaypal
-
-8. API PAYPAL WEBHOOK
-   ├─ POST https://uatserviciosweb.diri.mx/webresources/paypalwebhook
-   │   Header: Authorization: Bearer ...
-   │   Body: metadataParsedPaypal
-   ├─ Status: 200
-   ├─ Response: { codRespuesta: "OK", detalle: "SE PROCESO CON EXITO LA PETICION" }
-   └─ Si error → Error API_PAYPAL_RESPUESTA_NO_OK (502)
-
-9. VALIDACIONES DE NEGOCIO + MONGODB + CONSUMO
-   ├─ Idem a MercadoPago pasos 10-12
-   └─ Respuesta 200 + JSON
-```
 
 ### Flujo OpenPay
 
+```mermaid
+flowchart TD
+  StartOP[Inicio / POST /run-flow] --> ValidacionesOP[Validaciones + API detalle consumo (ANTES)]
+  ValidacionesOP --> ConsultaProdOP[SELECT PROD (diri_webhook_openpay) WHERE folio = folioCompra]
+  ConsultaProdOP -->|no rows| NoProdOP[SIN_REGISTRO_PROD_OPENPAY (404)]
+  ConsultaProdOP --> VerificarUatOP[Verificar existencia en UAT por folio]
+  VerificarUatOP -->|exists| ExisteUatOP[EXISTE_EN_UAT_OPENPAY (409)]
+  VerificarUatOP -->|not exists| InsertUatOP[INSERT en UAT]
+  InsertUatOP --> RecuperarMeta[SELECT UAT + Parse metadata → metadataParsedOpenpay]
+  RecuperarMeta -->|invalid| MetadataInvalidOP[METADATA_INVALIDA_PARA_API_OPENPAY (500)]
+  RecuperarMeta --> BuildOpenpay[Construir JSON webhook OpenPay (template + substitutions)]
+  BuildOpenpay --> CallOpenpay[POST /webhookopenpay]
+  CallOpenpay -->|error| ApiErrorOP[API_OPENPAY_RESPUESTA_NO_OK (502)]
+  CallOpenpay --> ValidacionesNegocioOP[Validaciones de negocio + Validar MongoDB]
+  ValidacionesNegocioOP --> ConsumoDespuesOP[API detalle consumo (DESPUÉS)]
+  ConsumoDespuesOP --> ComputeDiffOP[computeJsonDiff(ANTES,DESPUÉS)]
+  ComputeDiffOP --> ResponseOP[200: Responder JSON con logs y detalles]
+  NoProdOP --> ResponseErrOP1[Responder 404]
+  ExisteUatOP --> ResponseErrOP2[Responder 409]
+  MetadataInvalidOP --> ResponseErrOP3[Responder 500]
+  ApiErrorOP --> ResponseErrOP4[Responder 502]
 ```
-1. VALIDACIONES + CONSUMO ANTES
-   ├─ Idem a pasos anteriores
-   └─ API detalle consumo (ANTES)
 
-2. CONSULTA PROD
-   ├─ SELECT * FROM diri_webhook_openpay (PROD)
-   │   WHERE folio = folioCompra
-   ├─ Si no hay → Error SIN_REGISTRO_PROD_OPENPAY (404)
-   └─ registroProdOpenpay
-
-3. VERIFICAR EXISTENCIA EN UAT
-   ├─ SELECT * FROM diri_webhook_openpay (UAT)
-   │   WHERE folio = folioCompra
-   ├─ Si existe → Error EXISTE_EN_UAT_OPENPAY (409)
-   └─ Si no → Continuar
-
-4. INSERT EN UAT
-   ├─ INSERT INTO diri_webhook_openpay (UAT)
-   │   SET registroProdOpenpay
-   └─ affectedRows > 0 ✓
-
-5. RECUPERAR METADATA DESDE UAT
-   ├─ SELECT * FROM diri_webhook_openpay (UAT)
-   │   WHERE folio = folioCompra
-   ├─ Parse metadata → metadataParsedOpenpay
-   └─ Extrae: transaction, payment_method, customer
-
-6. CONSTRUIR JSON PARA WEBHOOK
-   ├─ Plantilla base (hardcoded) con estructura de event OpenPay
-   ├─ Sustituciones dinámicas:
-   │   ├─ creation_date
-   │   ├─ operation_date
-   │   ├─ order_id
-   │   ├─ amount
-   │   ├─ reference (payment_method)
-   │   ├─ email (customer)
-   │   └─ phone_number (customer)
-   ├─ Si metadata es nula/invalid → Error METADATA_INVALIDA_PARA_API_OPENPAY (500)
-   └─ openpayApi4Body
-
-7. API WEBHOOKOPENPAY
-   ├─ POST https://uatserviciosweb.diri.mx/webresources/webhookopenpay
-   │   Header: {} (sin autorización especial)
-   │   Body: openpayApi4Body
-   ├─ Status: 200
-   ├─ Response: { codRespuesta: "OK", detalle: "SE PROCESO CON EXITO LA PETICION" }
-   └─ Si error → Error API_OPENPAY_RESPUESTA_NO_OK (502)
-
-8. VALIDACIONES DE NEGOCIO + MONGODB + CONSUMO
-   ├─ Idem a pasos anteriores
-   └─ Respuesta 200 + JSON
-```
 
 ---
 
