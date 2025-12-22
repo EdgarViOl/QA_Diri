@@ -14,6 +14,7 @@
  * 5. Reportar cambios en consumo antes/después
  */
 
+require('dotenv').config({ path: './variables.env' });
 const express = require("express");
 const path = require("path");
 const fs = require("fs");
@@ -40,13 +41,12 @@ app.use("/logs", express.static(REPORTS_DIR));
  */
 
 // Endpoint de búsqueda de pagos de MercadoPago
-const API1_BASE_URL = "https://api.mercadopago.com/v1/payments/search";
+const API1_BASE_URL = process.env.MP_SEARCH_URL;
 
 // Token de autorización para MercadoPago
 // IMPORTANTE: En producción, mover a variable de entorno (.env)
 const API1_DEFAULT_HEADERS = {
-  Authorization:
-    "Bearer APP_USR-4048311431295047-110800-544ad44d3cb4a0e8e8880223481937b1-669403414",
+  Authorization: `Bearer ${process.env.MP_ACCESS_TOKEN}`,
 };
 
 /**
@@ -57,12 +57,11 @@ const API1_DEFAULT_HEADERS = {
  */
 
 // Base URL - el brandNumber se concatena al final: /{brandNumber}
-const API2_BASE_URL =
-  "https://uatserviciosweb.diri.mx/webresources/procesanotificacionmercadopago";
+const API2_BASE_URL = process.env.INTERNAL_NOTIF_MP_URL;
 
 // Headers para autenticación en API 2
 const API2_DEFAULT_HEADERS = {
-  Authorization: "Bearer 2aRiOCGL9jnmibtVKTWN54zSsjJq",
+  Authorization: `Bearer ${process.env.INTERNAL_API_TOKEN}`,
 };
 
 /**
@@ -73,12 +72,11 @@ const API2_DEFAULT_HEADERS = {
  */
 
 // Endpoint para reprocesar el webhook de PayPal
-const API_PAYPAL_WEBHOOK_URL =
-  "https://uatserviciosweb.diri.mx/webresources/paypalwebhook";
+const API_PAYPAL_WEBHOOK_URL = process.env.INTERNAL_PAYPAL_WEBHOOK_URL;
 
 // Headers para autenticación en API PayPal webhook
 const API_PAYPAL_WEBHOOK_HEADERS = {
-  Authorization: "Bearer 123dagrtetad34gGDs!",
+  Authorization: `Bearer ${process.env.INTERNAL_PAYPAL_TOKEN}`,
 };
 
 /**
@@ -88,11 +86,10 @@ const API_PAYPAL_WEBHOOK_HEADERS = {
  * Se utiliza para reprocesar eventos de pago completado.
  */
 
-const API_STRIPE_WEBHOOK_URL =
-  "https://uatserviciosweb.diri.mx/webresources/stripeWebhook";
+const API_STRIPE_WEBHOOK_URL = process.env.INTERNAL_STRIPE_WEBHOOK_URL;
 
 const API_STRIPE_WEBHOOK_HEADERS = {
-  Authorization: "Bearer 123dagrtetad34gGDs!",
+  Authorization: `Bearer ${process.env.INTERNAL_STRIPE_TOKEN}`,
 };
 
 /**
@@ -103,8 +100,7 @@ const API_STRIPE_WEBHOOK_HEADERS = {
  */
 
 // Endpoint para reprocesar el webhook de OpenPay
-const API_OPENPAY_WEBHOOK_URL =
-  "https://uatserviciosweb.diri.mx/webresources/webhookopenpay";
+const API_OPENPAY_WEBHOOK_URL = process.env.INTERNAL_OPENPAY_WEBHOOK_URL;
 
 // Headers para la API de OpenPay
 const API_OPENPAY_WEBHOOK_HEADERS = {};
@@ -117,12 +113,11 @@ const API_OPENPAY_WEBHOOK_HEADERS = {};
  */
 
 // Endpoint para consultar el detalle de consumo por DN (teléfono)
-const API_DETALLE_CONSUMO_URL =
-  "https://uatserviciosweb.diri.mx/webresources/consultaConsumo";
+const API_DETALLE_CONSUMO_URL = process.env.INTERNAL_CONSUMO_URL;
 
 // Headers para autenticación (reutiliza el mismo token que API MercadoPago)
 const API_DETALLE_CONSUMO_HEADERS = {
-  Authorization: "Bearer 2aRiOCGL9jnmibtVKTWN54zSsjJq",
+  Authorization: `Bearer ${process.env.INTERNAL_API_TOKEN}`,
 };
 
 /**
@@ -169,8 +164,7 @@ const API_DETALLE_CONSUMO_TIMEOUT_MS = 15000;       // consultaConsumo
  * Se utiliza para validar que la orden existe y tiene un estado de éxito después del pago.
  */
 
-const MONGO_URI =
-  "mongodb+srv://applications:qexpin-rugsuW-nupwi1@diri.kl13r.mongodb.net/";
+const MONGO_URI = process.env.MONGO_URI;
 const MONGO_DB_NAME = "ECOMMERCEDB";               // Base de datos
 const MONGO_ORDERS_COLLECTION = "tbl_orders";     // Colección de órdenes
 
@@ -572,7 +566,7 @@ app.post("/run-flow", async (req, res) => {
   // Extrae parámetros del body de la solicitud
   const { folioCompra, brandNumber, gateway, tipoOperacion, purchaseDate, dn } =
     req.body;
-  
+
   // Array para almacenar logs detallados del flujo de ejecución
   const log = [];
 
@@ -900,10 +894,9 @@ app.post("/run-flow", async (req, res) => {
       });
 
       log.push(
-        `Registro insertado en UAT con id = ${
-          insertResult.insertId !== undefined
-            ? insertResult.insertId
-            : "sin autoincremento"
+        `Registro insertado en UAT con id = ${insertResult.insertId !== undefined
+          ? insertResult.insertId
+          : "sin autoincremento"
         }`
       );
 
@@ -929,10 +922,9 @@ app.post("/run-flow", async (req, res) => {
       });
 
       log.push(
-        `Estatus actualizado a 'PENDIENTE' en UAT para ese folio_mercadopago (affectedRows = ${
-          updateResult.affectedRows !== undefined
-            ? updateResult.affectedRows
-            : "desconocido"
+        `Estatus actualizado a 'PENDIENTE' en UAT para ese folio_mercadopago (affectedRows = ${updateResult.affectedRows !== undefined
+          ? updateResult.affectedRows
+          : "desconocido"
         }).`
       );
 
@@ -940,7 +932,7 @@ app.post("/run-flow", async (req, res) => {
 
       const metadataRaw =
         registroProd &&
-        Object.prototype.hasOwnProperty.call(registroProd, "metadata")
+          Object.prototype.hasOwnProperty.call(registroProd, "metadata")
           ? registroProd.metadata
           : null;
 
@@ -1257,7 +1249,7 @@ app.post("/run-flow", async (req, res) => {
 
       const idrecurso =
         primerRegistroFolio &&
-        Object.prototype.hasOwnProperty.call(primerRegistroFolio, "idrecurso")
+          Object.prototype.hasOwnProperty.call(primerRegistroFolio, "idrecurso")
           ? primerRegistroFolio.idrecurso
           : null;
 
@@ -1435,10 +1427,9 @@ app.post("/run-flow", async (req, res) => {
       });
 
       log.push(
-        `Registro PayPal insertado en UAT con id = ${
-          insertResultPaypal.insertId !== undefined
-            ? insertResultPaypal.insertId
-            : "sin autoincremento"
+        `Registro PayPal insertado en UAT con id = ${insertResultPaypal.insertId !== undefined
+          ? insertResultPaypal.insertId
+          : "sin autoincremento"
         }`
       );
 
@@ -1446,7 +1437,7 @@ app.post("/run-flow", async (req, res) => {
 
       const metadataRawPaypal =
         registroProdPaypal &&
-        Object.prototype.hasOwnProperty.call(registroProdPaypal, "metadata")
+          Object.prototype.hasOwnProperty.call(registroProdPaypal, "metadata")
           ? registroProdPaypal.metadata
           : null;
 
@@ -1799,10 +1790,9 @@ app.post("/run-flow", async (req, res) => {
       });
 
       log.push(
-        `Registro OpenPay insertado en UAT con id = ${
-          insertResultOpenpay.insertId !== undefined
-            ? insertResultOpenpay.insertId
-            : "sin autoincremento"
+        `Registro OpenPay insertado en UAT con id = ${insertResultOpenpay.insertId !== undefined
+          ? insertResultOpenpay.insertId
+          : "sin autoincremento"
         }`
       );
 
@@ -1873,8 +1863,8 @@ app.post("/run-flow", async (req, res) => {
           typeof tx.amount === "number"
             ? tx.amount
             : tx.amount != null
-            ? Number(tx.amount)
-            : null;
+              ? Number(tx.amount)
+              : null;
         const reference = pm.reference || null;
         const email = customer.email || null;
         const phoneNumber = customer.phone_number || null;
@@ -2319,10 +2309,9 @@ app.post("/run-flow", async (req, res) => {
       });
 
       log.push(
-        `Registro Stripe insertado en UAT con id = ${
-          insertResultStripe.insertId !== undefined
-            ? insertResultStripe.insertId
-            : "sin autoincremento"
+        `Registro Stripe insertado en UAT con id = ${insertResultStripe.insertId !== undefined
+          ? insertResultStripe.insertId
+          : "sin autoincremento"
         }`
       );
 
@@ -2850,8 +2839,7 @@ async function llamarApiDetalleConsumoDN({ marca, dn, fase, log }) {
         bodyTexto = "[body de error no serializable]";
       }
       log.push(
-        `ERROR al llamar API detalle consumo DN (${fase}): HTTP ${
-          err.response.status
+        `ERROR al llamar API detalle consumo DN (${fase}): HTTP ${err.response.status
         }, body: "${bodyTexto}", mensaje: ${err.message}`
       );
     } else {
